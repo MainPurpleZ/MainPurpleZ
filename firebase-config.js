@@ -1,6 +1,6 @@
 // firebase-config.js
 export const firebaseConfig = {
-  apiKey: "AIzaSyAHhyDzcl7AG7rVNwIlQwAHfJpiLvqRuV0",
+  apiKey: "AIzaSyD6gHR9L9fFzASW7JqWK0XDmRnr5p8XR78",
   authDomain: "mainpurplez.firebaseapp.com",
   projectId: "mainpurplez",
   storageBucket: "mainpurplez.appspot.com",
