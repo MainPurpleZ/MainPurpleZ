@@ -20,11 +20,18 @@
         #comment-form button { padding: 0.7em; font-size: 1em; background-color: #0056b3; color: white; border: none; cursor: pointer; font-family: "Times New Roman", Times, serif; align-self: flex-start; }
         #comment-form button:hover { background-color: #003d82; }
         #comments-container { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
-        .comment { border-bottom: 1px solid #eee; padding: 1em 0; }
+        .comment { border-bottom: 1px solid #eee; padding: 1em; position: relative; transition: background-color: 0.3s; }
+        .comment.pinned { background-color: #fffbe6; border-left: 4px solid #f0ad4e; }
         .comment-author { font-weight: bold; color: #0056b3; margin-bottom: 0.3em; }
         .comment-date { font-size: 0.8em; color: #888; margin-bottom: 0.5em; }
         .comment-text { line-height: 1.5; }
         #login-prompt { display: block; margin-top: 2em; font-style: italic; }
+        .comment-actions { position: absolute; top: 1em; right: 1em; display: flex; gap: 0.5em; }
+        .comment-actions button { background: none; border: 1px solid #ccc; cursor: pointer; padding: 0.3em 0.6em; font-size: 0.8em; border-radius: 4px; }
+        .comment-actions .delete-btn:hover { background-color: #fbecec; color: #d9534f; border-color: #d9534f; }
+        .comment-actions .pin-btn:hover { background-color: #fcf8e3; color: #8a6d3b; border-color: #8a6d3b; }
+        #admin-panel { display: none; background-color: #fbecec; border: 1px solid #d9534f; padding: 1em; margin-bottom: 1em; }
+        #admin-panel button { background-color: #d9534f; color: white; border: none; padding: 0.8em 1.2em; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -42,6 +49,12 @@
         </nav>
         <main>
             <h1>Комментарии</h1>
+
+            <div id="admin-panel">
+                <h2>Панель администратора</h2>
+                <button id="clear-chat-btn">Очистить все комментарии</button>
+            </div>
+
             <p id="login-prompt">Пожалуйста, <a href="login.html">войдите</a> или <a href="register.html">зарегистрируйтесь</a>, чтобы оставлять комментарии.</p>
             
             <form id="comment-form">
@@ -58,13 +71,15 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
+        const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
+        let currentUserIsAdmin = false;
 
         const loginLink = document.getElementById('loginLink');
         const registerLink = document.getElementById('registerLink');
@@ -73,19 +88,23 @@
         const commentForm = document.getElementById('comment-form');
         const commentInput = document.getElementById('comment-input');
         const commentsContainer = document.getElementById('comments-container');
-        const appId = 'default-app-id'; // Use a consistent ID for the app path
+        const adminPanel = document.getElementById('admin-panel');
+        const clearChatBtn = document.getElementById('clear-chat-btn');
+        const appId = 'default-app-id';
 
-        // Listen for authentication state changes
+        const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
+
         onAuthStateChanged(auth, user => {
+            currentUserIsAdmin = user && adminEmails.includes(user.email);
+            adminPanel.style.display = currentUserIsAdmin ? 'block' : 'none';
+
             if (user && !user.isAnonymous) {
-                // User is signed in
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
                 loginPrompt.style.display = 'none';
                 commentForm.style.display = 'flex';
             } else {
-                // User is signed out
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
@@ -94,42 +113,51 @@
             }
         });
 
-        // Handle logout
-        logoutBtn.addEventListener('click', () => {
-            signOut(auth).then(() => {
-                window.location.href = 'index.html';
-            });
-        });
+        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
 
-        // Handle comment submission
         commentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const user = auth.currentUser;
             const commentText = commentInput.value.trim();
-
             if (user && commentText) {
-                try {
-                    await addDoc(collection(db, `/artifacts/${appId}/public/data/comments`), {
-                        text: commentText,
-                        author: user.email,
-                        createdAt: serverTimestamp()
-                    });
-                    commentInput.value = ''; // Clear input after sending
-                } catch (error) {
-                    console.error("Error adding document: ", error);
-                }
+                await addDoc(commentsRef, {
+                    text: commentText,
+                    author: user.email,
+                    createdAt: serverTimestamp(),
+                    pinned: false
+                });
+                commentInput.value = '';
             }
         });
 
-        // Listen for real-time comment updates
-        const commentsQuery = query(collection(db, `/artifacts/${appId}/public/data/comments`), orderBy("createdAt", "desc"));
+        const deleteComment = async (id) => {
+            if (!currentUserIsAdmin || !confirm("Вы уверены, что хотите удалить этот комментарий?")) return;
+            await deleteDoc(doc(db, `/artifacts/${appId}/public/data/comments`, id));
+        };
+
+        const togglePinComment = async (id, currentState) => {
+            if (!currentUserIsAdmin) return;
+            await updateDoc(doc(db, `/artifacts/${appId}/public/data/comments`, id), { pinned: !currentState });
+        };
+
+        const clearAllComments = async () => {
+            if (!currentUserIsAdmin || !confirm("ВЫ УВЕРЕНЫ, ЧТО ХОТИТЕ УДАЛИТЬ ВСЕ КОММЕНТАРИИ? ЭТО ДЕЙСТВИЕ НЕОБРАТИМО.")) return;
+            const snapshot = await getDocs(commentsRef);
+            snapshot.forEach(doc => deleteDoc(doc.ref));
+        };
+
+        clearChatBtn.addEventListener('click', clearAllComments);
+
+        const commentsQuery = query(commentsRef, orderBy("pinned", "desc"), orderBy("createdAt", "desc"));
         onSnapshot(commentsQuery, (snapshot) => {
-            commentsContainer.innerHTML = ''; // Clear old comments
-            
+            commentsContainer.innerHTML = '';
             snapshot.forEach(doc => {
-                const comment = doc.data();
+                const comment = { id: doc.id, ...doc.data() };
                 const commentElement = document.createElement('div');
                 commentElement.classList.add('comment');
+                if (comment.pinned) {
+                    commentElement.classList.add('pinned');
+                }
 
                 const authorElement = document.createElement('div');
                 authorElement.classList.add('comment-author');
@@ -137,8 +165,7 @@
 
                 const dateElement = document.createElement('div');
                 dateElement.classList.add('comment-date');
-                const date = comment.createdAt ? comment.createdAt.toDate().toLocaleString('ru-RU') : 'Только что';
-                dateElement.textContent = date;
+                dateElement.textContent = comment.createdAt ? comment.createdAt.toDate().toLocaleString('ru-RU') : 'Только что';
 
                 const textElement = document.createElement('p');
                 textElement.classList.add('comment-text');
@@ -147,8 +174,32 @@
                 commentElement.appendChild(authorElement);
                 commentElement.appendChild(dateElement);
                 commentElement.appendChild(textElement);
+
+                if (currentUserIsAdmin) {
+                    const actionsElement = document.createElement('div');
+                    actionsElement.classList.add('comment-actions');
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Удалить';
+                    deleteBtn.classList.add('delete-btn');
+                    deleteBtn.onclick = () => deleteComment(comment.id);
+
+                    const pinBtn = document.createElement('button');
+                    pinBtn.textContent = comment.pinned ? 'Открепить' : 'Закрепить';
+                    pinBtn.classList.add('pin-btn');
+                    pinBtn.onclick = () => togglePinComment(comment.id, comment.pinned);
+                    
+                    actionsElement.appendChild(pinBtn);
+                    actionsElement.appendChild(deleteBtn);
+                    commentElement.appendChild(actionsElement);
+                }
                 commentsContainer.appendChild(commentElement);
             });
+        }, (error) => {
+            console.error(error);
+            if (error.code === 'failed-precondition') {
+                commentsContainer.innerHTML = `<p style="color: red;"><b>Критическая ошибка:</b> Базе данных требуется специальный индекс для сортировки. Откройте консоль разработчика (F12), найдите в ошибке ссылку и перейдите по ней, чтобы создать индекс в вашей Firebase Console.</p>`;
+            }
         });
     </script>
 </body>
