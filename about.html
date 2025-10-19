@@ -15,7 +15,6 @@
         #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; display: none; }
         #logoutBtn:hover { text-decoration: underline; }
         h1 { font-size: 2.5em; font-weight: normal; }
-        p { line-height: 1.6; }
     </style>
 </head>
 <body>
@@ -33,15 +32,17 @@
         </nav>
         <main>
             <h1>Об Нас</h1>
-            <p>Мы питушары которые пытаемся делать срачи которые будет не понятные.</p>
-            <p>Также мы пытаемся сделать Босса КФС радостным и также сочный как ваши крыля, я уже хочу жрать ваши какахи которые вы выбрасили бож чел иди на улице (я доктор 5 звездный) чел я работаю доктором 3 года ахахах лашара а ты в доту 2 играеш и мои игры там masturbation делаэ ахаха лашара ваще скуфик ахаха</p>
+            <p>Мы питушары которые пытаемся делать срачи которые будет не понятные. Также мы пытаемся сделать Босса КФС радостным и также сочный как ваши крыля, я уже хочу жрать ваши какахи которые вы выбрасили бож чел иди на улице (я доктор 5 звездный) чел я работаю доктором 3 года ахахах лашара а ты в доту 2 играеш и мои игры там masturbation делаэ ахаха лашара ваще скуфик ахаха</p>
         </main>
     </div>
+
     <script type="module">
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // This line connects to your new config file
+        import { firebaseConfig } from './firebase-config.js';
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
@@ -49,20 +50,25 @@
         const registerLink = document.getElementById('registerLink');
         const logoutBtn = document.getElementById('logoutBtn');
 
+        // Check authentication state
         onAuthStateChanged(auth, user => {
             if (user && !user.isAnonymous) {
+                // User is signed in
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
             } else {
+                // User is signed out
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
             }
         });
 
+        // Handle logout
         logoutBtn.addEventListener('click', () => {
             signOut(auth).then(() => {
+                // Redirect to home page after sign out
                 window.location.href = 'index.html';
             }).catch((error) => {
                 console.error("Sign out error", error);
