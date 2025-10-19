@@ -58,7 +58,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         // Initialize Firebase
@@ -73,7 +73,7 @@
         const commentForm = document.getElementById('comment-form');
         const commentInput = document.getElementById('comment-input');
         const commentsContainer = document.getElementById('comments-container');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const appId = 'default-app-id'; // Use a consistent ID for the app path
 
         // Listen for authentication state changes
         onAuthStateChanged(auth, user => {
@@ -122,16 +122,12 @@
         });
 
         // Listen for real-time comment updates
-        const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
-        onSnapshot(commentsRef, (snapshot) => {
+        const commentsQuery = query(collection(db, `/artifacts/${appId}/public/data/comments`), orderBy("createdAt", "desc"));
+        onSnapshot(commentsQuery, (snapshot) => {
             commentsContainer.innerHTML = ''; // Clear old comments
-            const comments = [];
-            snapshot.forEach(doc => comments.push({ id: doc.id, ...doc.data() }));
             
-            // Sort comments by creation date, newest first
-            comments.sort((a, b) => b.createdAt - a.createdAt);
-
-            comments.forEach(comment => {
+            snapshot.forEach(doc => {
+                const comment = doc.data();
                 const commentElement = document.createElement('div');
                 commentElement.classList.add('comment');
 
@@ -157,5 +153,4 @@
     </script>
 </body>
 </html>
-
 
