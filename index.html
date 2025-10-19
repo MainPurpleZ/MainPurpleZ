@@ -1,34 +1,61 @@
+<!-- index.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World</title>
+    <title>Главная</title>
     <style>
-        /* A simple, classical style for a clean look */
         body {
-            /* A classic serif font for a timeless feel */
             font-family: "Times New Roman", Times, serif;
-            /* Resetting default margin and adding some padding so text isn't against the edge */
+            background-color: #f4f4f4;
+            color: #333;
             margin: 0;
-            padding: 1.5em;
-            background-color: #ffffff; /* Explicitly white background */
-            color: #000000; /* Explicitly black text */
+            padding: 2em;
         }
-
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 2em;
+            border: 1px solid #ddd;
+        }
+        nav {
+            padding-bottom: 1em;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 2em;
+        }
+        nav a {
+            margin-right: 20px;
+            color: #0056b3;
+            text-decoration: none;
+            font-size: 1.1em;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
         h1 {
-            /* Removing the default browser margins for the heading */
-            margin: 0;
-            /* A standard size for the heading */
-            font-size: 2em;
-            /* Using a normal font weight, not bold */
+            font-size: 2.5em;
             font-weight: normal;
+        }
+        p {
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <!-- The only content on the page -->
-    <h1>Hello World!</h1>
+    <div class="container">
+        <nav>
+            <a href="about.html">Об Нас</a>
+            <a href="projects.html">Каллы Проект</a>
+        </nav>
+        <main>
+            <h1>Бещастный Нищите Сайт</h1>
+            <p>Добро пожаловать на наш нищитный сайт. Этого сайт находится в стране "Говно". Также у говна есть своя вики. Не забудьте что все члены этого вебсайта это члены экипажа и как бы наш главный лидер питушар: "Итали Чикен" щас под подушкой смотрит на вашу маму и готов достать члены. Как я обожаю вас как членов уффф я скуф если что вот мой номер: +38066420424</p>
+        </main>
+    </div>
 </body>
 </html>
+
+
 
