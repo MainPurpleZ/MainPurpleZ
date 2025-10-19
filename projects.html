@@ -6,51 +6,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Каллы Проект</title>
     <style>
-        body {
-            font-family: "Times New Roman", Times, serif;
-            background-color: #f4f4f4;
-            color: #333;
-            margin: 0;
-            padding: 2em;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            padding: 2em;
-            border: 1px solid #ddd;
-        }
-        nav {
-            padding-bottom: 1em;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 2em;
-        }
-        nav a {
-            margin-right: 20px;
-            color: #0056b3;
-            text-decoration: none;
-            font-size: 1.1em;
-        }
-        nav a:hover {
-            text-decoration: underline;
-        }
-        h1 {
-            font-size: 2.5em;
-            font-weight: normal;
-        }
+        body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
+        nav { padding-bottom: 1em; border-bottom: 1px solid #ddd; margin-bottom: 2em; display: flex; align-items: center; }
+        nav a { margin-right: 20px; color: #0056b3; text-decoration: none; font-size: 1.1em; }
+        nav a:hover { text-decoration: underline; }
+        .auth-links { margin-left: auto; }
+        #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; display: none; }
+        #logoutBtn:hover { text-decoration: underline; }
+        h1 { font-size: 2.5em; font-weight: normal; }
     </style>
 </head>
 <body>
     <div class="container">
         <nav>
+            <a href="index.html">Главная</a>
             <a href="about.html">Об Нас</a>
             <a href="projects.html">Каллы Проект</a>
+            <a href="comments.html">Комментарии</a>
+            <div class="auth-links">
+                <a href="login.html" id="loginLink">Войти</a>
+                <a href="register.html" id="registerLink">Регистрация</a>
+                <button id="logoutBtn">Выйти</button>
+            </div>
         </nav>
         <main>
             <h1>Каллы Проект</h1>
             <p>Здесь будет информация о наших проектах.</p>
         </main>
     </div>
+     <script type="module">
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+                logoutBtn.style.display = 'inline';
+            } else {
+                loginLink.style.display = 'inline';
+                registerLink.style.display = 'inline';
+                logoutBtn.style.display = 'none';
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                window.location.href = 'index.html';
+            }).catch((error) => {
+                console.error("Sign out error", error);
+            });
+        });
+    </script>
 </body>
 </html>
 
