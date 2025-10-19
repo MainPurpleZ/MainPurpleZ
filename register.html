@@ -1,0 +1,58 @@
+<!-- register.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация</title>
+    <style>
+        body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
+        .container { max-width: 500px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
+        h1 { text-align: center; }
+        form { display: flex; flex-direction: column; }
+        input { padding: 10px; margin-bottom: 15px; font-size: 1em; border: 1px solid #ccc; }
+        button { padding: 10px; font-size: 1.1em; background-color: #0056b3; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #004494; }
+        #errorMessage { color: red; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Регистрация</h1>
+        <form id="registerForm">
+            <input type="email" id="email" placeholder="Электронная почта" required>
+            <input type="password" id="password" placeholder="Пароль" required>
+            <button type="submit">Зарегистрироваться</button>
+        </form>
+        <p id="errorMessage"></p>
+        <p style="text-align:center; margin-top: 20px;">Уже есть аккаунт? <a href="login.html">Войти</a></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        
+        const registerForm = document.getElementById('registerForm');
+        const errorMessage = document.getElementById('errorMessage');
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                if (typeof __initial_auth_token !== 'undefined') { await signInWithCustomToken(auth, __initial_auth_token); } else { await signInAnonymously(auth); }
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                console.log('User registered:', userCredential.user);
+                window.location.href = 'comments.html';
+            } catch (error) {
+                errorMessage.textContent = 'Ошибка регистрации: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
