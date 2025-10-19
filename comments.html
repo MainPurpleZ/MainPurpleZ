@@ -22,6 +22,7 @@
         #comments-container { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
         .comment { border-bottom: 1px solid #eee; padding: 1em 1em 1em 0; position: relative; }
         .comment.pinned { background-color: #fffbe6; border-left: 4px solid #f0ad4e; padding-left: 1em; }
+        .comment.is-moving { outline: 2px dashed #d9534f; }
         .comment-author { font-weight: bold; color: #0056b3; margin-bottom: 0.3em; cursor: pointer; }
         .comment-author:hover { text-decoration: underline; }
         .comment-author.banned { text-decoration: line-through; color: #d9534f; }
@@ -34,6 +35,12 @@
         #admin-panel { display: none; background-color: #f8f9fa; border: 1px solid #ddd; padding: 1em; margin-bottom: 1em; }
         #admin-panel h2 { margin-top: 0; font-size: 1.2em; }
         #admin-panel button { background-color: #d9534f; color: white; border: none; padding: 0.8em 1.2em; cursor: pointer; }
+        .admin-actions-menu { position: relative; display: inline-block; }
+        .admin-actions-menu-content { display: none; position: absolute; background-color: #f9f9f9; min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; }
+        .admin-actions-menu-content button { width: 100%; text-align: left; padding: 12px 16px; border: none; background: none; }
+        .admin-actions-menu-content button:hover { background-color: #f1f1f1; }
+        .admin-actions-menu:hover .admin-actions-menu-content { display: block; }
+        .move-target-btn { border: 1px solid #28a745 !important; color: #28a745 !important; margin-left: 10px; }
         /* Vote Styles */
         .vote-section { display: flex; align-items: center; gap: 5px; margin-left: auto; }
         .vote-btn { font-size: 1.2em; cursor: pointer; border: none; background: none; padding: 2px 5px; border-radius: 4px; }
@@ -42,6 +49,7 @@
         .vote-count { font-size: 0.9em; color: #666; }
         /* Reply Styles */
         .replies-container { margin-left: 2em; border-left: 2px solid #ddd; padding-left: 1em; }
+        .reply-form { display: none; flex-direction: column; gap: 0.5em; margin-top: 1em; }
         /* Modal Styles */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background-color: #fff; padding: 2em; border-radius: 5px; width: 90%; max-width: 500px; position: relative; }
@@ -72,6 +80,11 @@
             <div id="admin-panel">
                 <h2>Панель администратора</h2>
                 <button id="clear-chat-btn">Очистить все комментарии</button>
+                 <div id="move-mode-controls" style="display: none; margin-top: 10px;">
+                    <span>Режим перемещения активен.</span>
+                    <button id="move-to-root-btn">Сделать главным</button>
+                    <button id="cancel-move-btn">Отмена</button>
+                </div>
             </div>
             <p id="login-prompt">Пожалуйста, <a href="login.html">войдите</a> или <a href="register.html">зарегистрируйтесь</a>, чтобы оставлять комментарии.</p>
             <form id="comment-form">
@@ -104,6 +117,7 @@
         const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
         let currentUserIsAdmin = false;
         let currentUser = null;
+        let commentBeingMoved = null;
         let bannedUserUIDs = new Set();
         let userProfiles = new Map();
 
@@ -119,12 +133,15 @@
         const profileModal = document.getElementById('profile-modal');
         const profileInfoContent = document.getElementById('profile-info-content');
         const modalCloseBtn = document.getElementById('modal-close-btn');
+        const moveModeControls = document.getElementById('move-mode-controls');
+        const moveToRootBtn = document.getElementById('move-to-root-btn');
+        const cancelMoveBtn = document.getElementById('cancel-move-btn');
         const appId = 'default-app-id';
 
         const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
         const bannedUsersRef = collection(db, `/artifacts/${appId}/public/data/bannedUsers`);
         const userProfilesRef = collection(db, `/artifacts/${appId}/public/data/userProfiles`);
-
+        
         onSnapshot(bannedUsersRef, (snapshot) => {
             bannedUserUIDs.clear();
             snapshot.forEach(doc => bannedUserUIDs.add(doc.id));
@@ -156,6 +173,11 @@
         });
 
         logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
+        clearChatBtn.addEventListener('click', async () => {
+            if (!currentUserIsAdmin || !confirm("ВЫ УВЕРЕНЫ?")) return;
+            const snapshot = await getDocs(commentsRef);
+            snapshot.forEach(doc => deleteDoc(doc.ref));
+        });
 
         commentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -178,8 +200,7 @@
         profileModal.addEventListener('click', (e) => { if (e.target === profileModal) profileModal.style.display = 'none'; });
 
         const showUserProfile = async (userEmail, userUID) => {
-            if (!currentUser) return; // Only logged-in users can view profiles
-            
+            if (!currentUser) return;
             profileInfoContent.innerHTML = '<p>Загрузка данных...</p>';
             profileModal.style.display = 'flex';
 
@@ -190,18 +211,11 @@
                 const lastComment = snapshot.docs[0].data();
                 lastCommentHTML = `<p><strong>Последний комментарий:</strong></p><div class="last-comment"><p>${lastComment.text}</p><small>${lastComment.createdAt ? lastComment.createdAt.toDate().toLocaleString('ru-RU') : ''}</small></div>`;
             }
-
-            let profileHTML = `
-                <p><strong>Email:</strong> ${userEmail}</p>
-                ${lastCommentHTML}
-            `;
-
+            let profileHTML = `<p><strong>Email:</strong> ${userEmail}</p>${lastCommentHTML}`;
             if (currentUserIsAdmin) {
                 const isBanned = bannedUserUIDs.has(userUID);
-                let creationTimeText = 'Недоступно';
                 const userProfile = userProfiles.get(userUID) || {};
                 const nickname = userProfile.nickname || '';
-
                 profileHTML += `
                     <div class="admin-only">
                         <p><strong>UID:</strong> ${userUID}</p>
@@ -212,58 +226,108 @@
                             <button id="save-nickname-btn" style="margin-top: 10px;">Сохранить никнейм</button>
                         </div>
                         <button id="ban-user-btn" class="${isBanned ? 'unban' : ''}">${isBanned ? 'Разбанить' : 'Забанить'}</button>
-                    </div>
-                `;
+                    </div>`;
             }
-
             profileInfoContent.innerHTML = profileHTML;
-            
             if (currentUserIsAdmin) {
                 document.getElementById('ban-user-btn').onclick = () => toggleBanStatus(userUID, userEmail);
                 document.getElementById('save-nickname-btn').onclick = () => saveNickname(userUID);
             }
         };
-
+        
         const toggleBanStatus = async (uid, email) => {
             const isCurrentlyBanned = bannedUserUIDs.has(uid);
             const userDocRef = doc(db, `/artifacts/${appId}/public/data/bannedUsers`, uid);
             if (isCurrentlyBanned) {
-                if (confirm(`Разбанить ${email}?`)) {
-                    await deleteDoc(userDocRef);
-                    alert("Пользователь разбанен.");
-                }
+                if (confirm(`Разбанить ${email}?`)) await deleteDoc(userDocRef);
             } else {
-                if (confirm(`Забанить ${email}?`)) {
-                    await setDoc(userDocRef, { email: email, bannedAt: serverTimestamp() });
-                    alert("Пользователь забанен.");
-                }
+                if (confirm(`Забанить ${email}?`)) await setDoc(userDocRef, { email: email, bannedAt: serverTimestamp() });
             }
             profileModal.style.display = 'none';
         };
 
         const saveNickname = async (uid) => {
-            const nicknameInput = document.getElementById('nickname-input');
-            const newNickname = nicknameInput.value.trim();
-            const userProfileRef = doc(db, `/artifacts/${appId}/public/data/userProfiles`, uid);
-            try {
-                await setDoc(userProfileRef, { nickname: newNickname }, { merge: true });
-                alert("Никнейм сохранен!");
-                profileModal.style.display = 'none';
-            } catch (error) {
-                console.error("Error saving nickname: ", error);
-                alert("Не удалось сохранить никнейм.");
-            }
+            const newNickname = document.getElementById('nickname-input').value.trim();
+            await setDoc(doc(db, `/artifacts/${appId}/public/data/userProfiles`, uid), { nickname: newNickname }, { merge: true });
+            alert("Никнейм сохранен!");
+            profileModal.style.display = 'none';
         };
         
         const editComment = async (commentId) => {
             const commentDoc = await getDoc(doc(commentsRef, commentId));
-            const currentText = commentDoc.data().text;
-            const newText = prompt("Отредактируйте комментарий:", currentText);
-            if (newText !== null && newText.trim() !== "") {
-                await updateDoc(doc(commentsRef, commentId), { text: newText.trim() });
-            }
+            const newText = prompt("Отредактируйте комментарий:", commentDoc.data().text);
+            if (newText !== null && newText.trim() !== "") await updateDoc(doc(commentsRef, commentId), { text: newText.trim() });
         };
 
+        const handleVote = async (commentId, voteType) => {
+            if (!currentUser) return;
+            const commentDocRef = doc(commentsRef, commentId);
+            const commentSnapshot = await getDoc(commentDocRef);
+            if (!commentSnapshot.exists()) return;
+            const commentData = commentSnapshot.data();
+            const likes = commentData.likes || [];
+            const dislikes = commentData.dislikes || [];
+            const uid = currentUser.uid;
+            const hasLiked = likes.includes(uid);
+            const hasDisliked = dislikes.includes(uid);
+            if (voteType === 'like') {
+                if (hasLiked) { likes.splice(likes.indexOf(uid), 1); } 
+                else {
+                    likes.push(uid);
+                    if (hasDisliked) { dislikes.splice(dislikes.indexOf(uid), 1); }
+                }
+            } else if (voteType === 'dislike') {
+                if (hasDisliked) { dislikes.splice(dislikes.indexOf(uid), 1); } 
+                else {
+                    dislikes.push(uid);
+                    if (hasLiked) { likes.splice(likes.indexOf(uid), 1); }
+                }
+            }
+            await updateDoc(commentDocRef, { likes, dislikes });
+        };
+        
+        const editVotes = async (commentId) => {
+            const newLikes = parseInt(prompt("Новое количество лайков:"), 10);
+            const newDislikes = parseInt(prompt("Новое количество дизлайков:"), 10);
+            if (!isNaN(newLikes) && !isNaN(newDislikes)) {
+                await updateDoc(doc(commentsRef, commentId), { 
+                    likes: Array.from({ length: newLikes }, (_, i) => `admin_like_${i}`),
+                    dislikes: Array.from({ length: newDislikes }, (_, i) => `admin_dislike_${i}`)
+                });
+            } else { alert("Введите корректные числа."); }
+        };
+
+        const enterMoveMode = (comment) => {
+            if (commentBeingMoved) exitMoveMode(); 
+            commentBeingMoved = comment;
+            moveModeControls.style.display = 'block';
+            document.querySelectorAll('.comment').forEach(el => {
+                if (el.dataset.commentId === comment.id) {
+                    el.classList.add('is-moving');
+                } else {
+                    const moveBtn = document.createElement('button');
+                    moveBtn.textContent = 'Переместить сюда';
+                    moveBtn.classList.add('move-target-btn');
+                    moveBtn.onclick = () => moveComment(comment.id, el.dataset.commentId);
+                    el.querySelector('.comment-actions').appendChild(moveBtn);
+                }
+            });
+        };
+
+        const exitMoveMode = () => {
+            commentBeingMoved = null;
+            moveModeControls.style.display = 'none';
+            document.querySelectorAll('.is-moving, .move-target-btn').forEach(el => el.remove());
+        };
+
+        const moveComment = async (commentToMoveId, newParentId) => {
+            await updateDoc(doc(commentsRef, commentToMoveId), { parentId: newParentId });
+            exitMoveMode();
+        };
+
+        moveToRootBtn.addEventListener('click', () => { if(commentBeingMoved) moveComment(commentBeingMoved.id, null); });
+        cancelMoveBtn.addEventListener('click', exitMoveMode);
+        
         const renderComments = (comments) => {
             const commentsMap = new Map();
             const rootComments = [];
@@ -281,30 +345,21 @@
         const createCommentElement = (comment) => {
             const commentElement = document.createElement('div');
             commentElement.classList.add('comment');
+            commentElement.dataset.commentId = comment.id;
             if (comment.pinned) commentElement.classList.add('pinned');
 
             const authorElement = document.createElement('div');
             authorElement.classList.add('comment-author');
-            if (currentUser) {
-                 authorElement.onclick = () => showUserProfile(comment.author, comment.authorUID);
-            }
-
+            if (currentUser) authorElement.onclick = () => showUserProfile(comment.author, comment.authorUID);
             const nicknameSpan = document.createElement('span');
             nicknameSpan.classList.add('author-nickname');
             const userProfile = userProfiles.get(comment.authorUID);
-            if(userProfile && userProfile.nickname) {
-                nicknameSpan.textContent = `(${userProfile.nickname})`;
-            }
-            
+            if(userProfile && userProfile.nickname) nicknameSpan.textContent = `(${userProfile.nickname})`;
             const emailSpan = document.createElement('span');
             emailSpan.textContent = comment.author;
-
             authorElement.appendChild(nicknameSpan);
             authorElement.appendChild(emailSpan);
-
-            if (bannedUserUIDs.has(comment.authorUID)) {
-                authorElement.classList.add('banned');
-            }
+            if (bannedUserUIDs.has(comment.authorUID)) authorElement.classList.add('banned');
 
             const dateElement = document.createElement('div');
             dateElement.classList.add('comment-date');
@@ -332,8 +387,63 @@
                 const editBtn = document.createElement('button');
                 editBtn.textContent = 'Редактировать';
                 editBtn.onclick = () => editComment(comment.id);
+                
+                const pinBtn = document.createElement('button');
+                pinBtn.textContent = comment.pinned ? 'Открепить' : 'Закрепить';
+                pinBtn.onclick = () => updateDoc(doc(commentsRef, comment.id), { pinned: !comment.pinned });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Удалить';
+                deleteBtn.onclick = () => { if(confirm("Удалить?")) deleteDoc(doc(commentsRef, comment.id)); };
+                
+                const adminMenu = document.createElement('div');
+                adminMenu.classList.add('admin-actions-menu');
+                const adminBtn = document.createElement('button');
+                adminBtn.textContent = 'Админ';
+                const menuContent = document.createElement('div');
+                menuContent.classList.add('admin-actions-menu-content');
+                const editVotesBtn = document.createElement('button');
+                editVotesBtn.textContent = 'Изменить голоса';
+                editVotesBtn.onclick = () => editVotes(comment.id);
+                const moveBtn = document.createElement('button');
+                moveBtn.textContent = 'Переместить';
+                moveBtn.onclick = () => enterMoveMode(comment);
+                menuContent.appendChild(editVotesBtn);
+                menuContent.appendChild(moveBtn);
+                adminMenu.appendChild(adminBtn);
+                adminMenu.appendChild(menuContent);
+                
                 actionsElement.appendChild(editBtn);
+                actionsElement.appendChild(pinBtn);
+                actionsElement.appendChild(deleteBtn);
+                actionsElement.appendChild(adminMenu);
             }
+
+            const voteSection = document.createElement('div');
+            voteSection.classList.add('vote-section');
+            const likeBtn = document.createElement('button');
+            likeBtn.textContent = '👍';
+            likeBtn.classList.add('vote-btn');
+            const likeCount = document.createElement('span');
+            likeCount.classList.add('vote-count');
+            const dislikeBtn = document.createElement('button');
+            dislikeBtn.textContent = '👎';
+            dislikeBtn.classList.add('vote-btn');
+            const dislikeCount = document.createElement('span');
+            dislikeCount.classList.add('vote-count');
+            likeCount.textContent = comment.likes?.length || 0;
+            dislikeCount.textContent = comment.dislikes?.length || 0;
+            if (currentUser) {
+                if (comment.likes?.includes(currentUser.uid)) likeBtn.classList.add('liked');
+                if (comment.dislikes?.includes(currentUser.uid)) dislikeBtn.classList.add('disliked');
+                likeBtn.onclick = () => handleVote(comment.id, 'like');
+                dislikeBtn.onclick = () => handleVote(comment.id, 'dislike');
+            }
+            voteSection.appendChild(likeBtn);
+            voteSection.appendChild(likeCount);
+            voteSection.appendChild(dislikeBtn);
+            voteSection.appendChild(dislikeCount);
+            actionsElement.appendChild(voteSection);
             
             commentElement.appendChild(authorElement);
             commentElement.appendChild(dateElement);
@@ -352,11 +462,9 @@
         const createReplyForm = (parentId) => {
             const form = document.createElement('form');
             form.classList.add('reply-form');
-            // ... (rest of the function is the same, can be omitted for brevity if needed)
             form.style.display = 'flex';
             const textarea = document.createElement('textarea');
             textarea.placeholder = 'Введите ваш ответ...';
-            textarea.required = true;
             const button = document.createElement('button');
             button.type = 'submit';
             button.textContent = 'Отправить ответ';
@@ -365,7 +473,7 @@
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                  if (bannedUserUIDs.has(currentUser?.uid)) {
-                    alert("Вы забанены и не можете отвечать.");
+                    alert("Вы забанены.");
                     return;
                 }
                 const replyText = textarea.value.trim();
