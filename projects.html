@@ -32,14 +32,17 @@
         </nav>
         <main>
             <h1>Каллы Проект</h1>
-            <p>Здесь будет информация о наших проектах.</p>
+            <p>Здесь будет информация о ваших проектах.</p>
         </main>
     </div>
-     <script type="module">
+
+    <script type="module">
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // This line connects to your new config file
+        import { firebaseConfig } from './firebase-config.js';
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
@@ -47,20 +50,25 @@
         const registerLink = document.getElementById('registerLink');
         const logoutBtn = document.getElementById('logoutBtn');
 
+        // Check authentication state
         onAuthStateChanged(auth, user => {
-            if (user) {
+            if (user && !user.isAnonymous) {
+                // User is signed in
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
             } else {
+                // User is signed out
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
             }
         });
 
+        // Handle logout
         logoutBtn.addEventListener('click', () => {
             signOut(auth).then(() => {
+                // Redirect to home page after sign out
                 window.location.href = 'index.html';
             }).catch((error) => {
                 console.error("Sign out error", error);
