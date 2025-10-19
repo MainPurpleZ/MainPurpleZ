@@ -24,6 +24,7 @@
         .comment.pinned { background-color: #fffbe6; border-left: 4px solid #f0ad4e; padding-left: 1em; }
         .comment.is-moving { outline: 2px dashed #d9534f; }
         .comment-author { font-weight: bold; color: #0056b3; margin-bottom: 0.3em; }
+        .comment-author.banned { text-decoration: line-through; color: #d9534f; }
         .comment-author.admin-clickable { cursor: pointer; text-decoration: underline; }
         .comment-author.admin-clickable:hover { color: #003d82; }
         .comment-date { font-size: 0.8em; color: #888; margin-bottom: 0.5em; }
@@ -62,6 +63,8 @@
         .profile-info p { margin: 0.5em 0; }
         .profile-info strong { color: #333; }
         .last-comment { background-color: #f9f9f9; border-left: 3px solid #ccc; padding: 1em; margin-top: 1em; white-space: pre-wrap; }
+        #ban-user-btn { background-color: #d9534f; color: white; border: none; padding: 0.8em; margin-top: 1em; cursor: pointer; width: 100%; }
+        #ban-user-btn.unban { background-color: #5cb85c; }
     </style>
 </head>
 <body>
@@ -102,14 +105,16 @@
         <div class="modal-content">
             <span class="modal-close" id="modal-close-btn">&times;</span>
             <h2>Данные пользователя</h2>
-            <div class="profile-info" id="profile-info-content"></div>
+            <div class="profile-info" id="profile-info-content">
+                <!-- Profile data will be injected here -->
+            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, getDocs, where, limit, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, getDocs, where, limit, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
@@ -120,6 +125,7 @@
         let currentUserIsAdmin = false;
         let currentUser = null;
         let commentBeingMoved = null;
+        let bannedUserUIDs = new Set();
 
         const loginLink = document.getElementById('loginLink');
         const registerLink = document.getElementById('registerLink');
@@ -139,6 +145,22 @@
         const appId = 'default-app-id';
 
         const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
+        const bannedUsersRef = collection(db, `/artifacts/${appId}/public/data/bannedUsers`);
+
+        // Listen for changes in the banned users list
+        onSnapshot(bannedUsersRef, (snapshot) => {
+            bannedUserUIDs.clear();
+            snapshot.forEach(doc => bannedUserUIDs.add(doc.id));
+            // Re-render comments to update banned status visuals
+            document.querySelectorAll('.comment-author').forEach(el => {
+                if (bannedUserUIDs.has(el.dataset.uid)) {
+                    el.classList.add('banned');
+                } else {
+                    el.classList.remove('banned');
+                }
+            });
+        });
+
 
         onAuthStateChanged(auth, user => {
             currentUser = user;
@@ -164,6 +186,10 @@
 
         commentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (bannedUserUIDs.has(currentUser?.uid)) {
+                alert("Вы забанены и не можете отправлять комментарии.");
+                return;
+            }
             const commentText = commentInput.value.trim();
             if (currentUser && commentText) {
                 await addDoc(commentsRef, {
@@ -176,7 +202,7 @@
         });
 
         const clearAllComments = async () => {
-            if (!currentUserIsAdmin || !confirm("ВЫ УВЕРЕНЫ, ЧТО ХОТИТЕ УДАЛИТЬ ВСЕ КОММЕНТАРИИ? ЭТО ДЕЙСТВИЕ НЕОБРАТИМО.")) return;
+            if (!currentUserIsAdmin || !confirm("ВЫ УВЕРЕНЫ?")) return;
             const snapshot = await getDocs(commentsRef);
             snapshot.forEach(doc => deleteDoc(doc.ref));
         };
@@ -185,22 +211,54 @@
         modalCloseBtn.addEventListener('click', () => profileModal.style.display = 'none');
         profileModal.addEventListener('click', (e) => { if (e.target === profileModal) profileModal.style.display = 'none'; });
 
-        const showUserProfile = async (userEmail) => {
+        const showUserProfile = async (userEmail, userUID) => {
             if (!currentUserIsAdmin) return;
             profileInfoContent.innerHTML = '<p>Загрузка данных...</p>';
             profileModal.style.display = 'flex';
-            let creationTimeText = 'Недоступно (можно увидеть только для своего аккаунта)';
-             if (auth.currentUser && auth.currentUser.email === userEmail) {
+
+            const isBanned = bannedUserUIDs.has(userUID);
+            let creationTimeText = 'Недоступно';
+             if (auth.currentUser && auth.currentUser.uid === userUID) {
                 creationTimeText = auth.currentUser.metadata.creationTime ? new Date(auth.currentUser.metadata.creationTime).toLocaleString('ru-RU') : 'Неизвестно';
             }
-            const lastCommentQuery = query(commentsRef, where("author", "==", userEmail), orderBy("createdAt", "desc"), limit(1));
+
+            const lastCommentQuery = query(commentsRef, where("authorUID", "==", userUID), orderBy("createdAt", "desc"), limit(1));
             const snapshot = await getDocs(lastCommentQuery);
-            let lastCommentHTML = '<p><strong>Последний комментарий:</strong> Пользователь еще не оставлял комментариев.</p>';
+            let lastCommentHTML = '<p><strong>Последний комментарий:</strong> Нет.</p>';
             if (!snapshot.empty) {
                 const lastComment = snapshot.docs[0].data();
                 lastCommentHTML = `<p><strong>Последний комментарий:</strong></p><div class="last-comment"><p>${lastComment.text}</p><small>${lastComment.createdAt ? lastComment.createdAt.toDate().toLocaleString('ru-RU') : ''}</small></div>`;
             }
-            profileInfoContent.innerHTML = `<p><strong>Email:</strong> ${userEmail}</p><p><strong>Аккаунт создан:</strong> ${creationTimeText}</p>${lastCommentHTML}`;
+
+            const banButtonHTML = `<button id="ban-user-btn" class="${isBanned ? 'unban' : ''}">${isBanned ? 'Разбанить' : 'Забанить'} пользователя</button>`;
+
+            profileInfoContent.innerHTML = `
+                <p><strong>Email:</strong> ${userEmail}</p>
+                <p><strong>UID:</strong> ${userUID}</p>
+                <p><strong>Аккаунт создан:</strong> ${creationTimeText}</p>
+                <p><strong>Статус:</strong> ${isBanned ? '<span style="color:red;">Забанен</span>' : '<span style="color:green;">Активен</span>'}</p>
+                ${lastCommentHTML}
+                ${banButtonHTML}
+            `;
+            
+            document.getElementById('ban-user-btn').onclick = () => toggleBanStatus(userUID, userEmail, isBanned);
+        };
+
+        const toggleBanStatus = async (uid, email, isCurrentlyBanned) => {
+            if (!currentUserIsAdmin) return;
+            const userDocRef = doc(db, `/artifacts/${appId}/public/data/bannedUsers`, uid);
+            if (isCurrentlyBanned) {
+                if (confirm(`Вы уверены, что хотите РАЗБАНИТЬ ${email}?`)) {
+                    await deleteDoc(userDocRef);
+                    alert("Пользователь разбанен.");
+                }
+            } else {
+                if (confirm(`Вы уверены, что хотите ЗАБАНИТЬ ${email}?`)) {
+                    await setDoc(userDocRef, { email: email, bannedAt: serverTimestamp() });
+                    alert("Пользователь забанен.");
+                }
+            }
+            profileModal.style.display = 'none'; // Close modal after action
         };
 
         const handleVote = async (commentId, voteType) => {
@@ -231,19 +289,16 @@
         };
         
         const editVotes = async (commentId) => {
-            const newLikesStr = prompt("Введите новое количество лайков:");
-            const newDislikesStr = prompt("Введите новое количество дизлайков:");
+            const newLikesStr = prompt("Новое количество лайков:");
+            const newDislikesStr = prompt("Новое количество дизлайков:");
             const newLikes = parseInt(newLikesStr, 10);
             const newDislikes = parseInt(newDislikesStr, 10);
-
             if (!isNaN(newLikes) && !isNaN(newDislikes)) {
-                const likesArray = Array.from({ length: newLikes }, (_, i) => `admin_like_${i}`);
-                const dislikesArray = Array.from({ length: newDislikes }, (_, i) => `admin_dislike_${i}`);
-                const commentDocRef = doc(db, `/artifacts/${appId}/public/data/comments`, commentId);
-                await updateDoc(commentDocRef, { likes: likesArray, dislikes: dislikesArray });
-            } else {
-                alert("Пожалуйста, введите корректные числа.");
-            }
+                await updateDoc(doc(db, `/artifacts/${appId}/public/data/comments`, commentId), { 
+                    likes: Array.from({ length: newLikes }, (_, i) => `admin_like_${i}`),
+                    dislikes: Array.from({ length: newDislikes }, (_, i) => `admin_dislike_${i}`)
+                });
+            } else { alert("Введите корректные числа."); }
         };
 
         const enterMoveMode = (comment) => {
@@ -271,15 +326,12 @@
         };
 
         const moveComment = async (commentToMoveId, newParentId) => {
-            if (!confirm(`Вы уверены, что хотите переместить этот комментарий?`)) return;
-            const commentDocRef = doc(db, `/artifacts/${appId}/public/data/comments`, commentToMoveId);
-            await updateDoc(commentDocRef, { parentId: newParentId });
+            if (!confirm(`Переместить этот комментарий?`)) return;
+            await updateDoc(doc(db, `/artifacts/${appId}/public/data/comments`, commentToMoveId), { parentId: newParentId });
             exitMoveMode();
         };
 
-        moveToRootBtn.addEventListener('click', () => {
-            if(commentBeingMoved) moveComment(commentBeingMoved.id, null);
-        });
+        moveToRootBtn.addEventListener('click', () => { if(commentBeingMoved) moveComment(commentBeingMoved.id, null); });
         cancelMoveBtn.addEventListener('click', exitMoveMode);
 
         const renderComments = (comments) => {
@@ -305,9 +357,13 @@
             const authorElement = document.createElement('div');
             authorElement.classList.add('comment-author');
             authorElement.textContent = comment.author;
+            authorElement.dataset.uid = comment.authorUID; // Store UID on the element
+             if (bannedUserUIDs.has(comment.authorUID)) {
+                authorElement.classList.add('banned');
+            }
             if (currentUserIsAdmin) {
                 authorElement.classList.add('admin-clickable');
-                authorElement.onclick = () => showUserProfile(comment.author);
+                authorElement.onclick = () => showUserProfile(comment.author, comment.authorUID);
             }
 
             const dateElement = document.createElement('div');
@@ -338,7 +394,6 @@
                 pinBtn.textContent = comment.pinned ? 'Открепить' : 'Закрепить';
                 pinBtn.classList.add('pin-btn');
                 pinBtn.onclick = () => updateDoc(doc(db, `/artifacts/${appId}/public/data/comments`, comment.id), { pinned: !comment.pinned });
-                
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = 'Удалить';
                 deleteBtn.classList.add('delete-btn');
@@ -350,15 +405,12 @@
                 adminBtn.textContent = 'Админ';
                 const menuContent = document.createElement('div');
                 menuContent.classList.add('admin-actions-menu-content');
-                
                 const editVotesBtn = document.createElement('button');
                 editVotesBtn.textContent = 'Изменить голоса';
                 editVotesBtn.onclick = () => editVotes(comment.id);
-                
                 const moveBtn = document.createElement('button');
                 moveBtn.textContent = 'Переместить';
                 moveBtn.onclick = () => enterMoveMode(comment);
-
                 menuContent.appendChild(editVotesBtn);
                 menuContent.appendChild(moveBtn);
                 adminMenu.appendChild(adminBtn);
@@ -428,6 +480,10 @@
             form.appendChild(button);
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                 if (bannedUserUIDs.has(currentUser?.uid)) {
+                    alert("Вы забанены и не можете отвечать на комментарии.");
+                    return;
+                }
                 const replyText = textarea.value.trim();
                 if (currentUser && replyText) {
                     await addDoc(commentsRef, {
