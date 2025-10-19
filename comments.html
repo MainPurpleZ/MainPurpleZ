@@ -1,0 +1,154 @@
+<!-- comments.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Комментарии</title>
+    <style>
+        body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
+        .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
+        nav { padding-bottom: 1em; border-bottom: 1px solid #ddd; margin-bottom: 2em; display: flex; align-items: center; }
+        nav a { margin-right: 20px; color: #0056b3; text-decoration: none; font-size: 1.1em; }
+        nav a:hover { text-decoration: underline; }
+        .auth-links { margin-left: auto; }
+        #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; display: none; }
+        #logoutBtn:hover { text-decoration: underline; }
+        h1 { font-size: 2.5em; font-weight: normal; }
+        #commentForm { display: none; flex-direction: column; margin-top: 2em; }
+        textarea { padding: 10px; font-size: 1em; border: 1px solid #ccc; min-height: 80px; margin-bottom: 10px; }
+        #commentForm button { padding: 10px; font-size: 1.1em; background-color: #0056b3; color: white; border: none; cursor: pointer; align-self: flex-end; }
+        #commentsContainer { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
+        .comment { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .comment-author { font-weight: bold; color: #0056b3; }
+        .comment-date { font-size: 0.8em; color: #888; margin-left: 10px; }
+        .comment-text { margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">Главная</a>
+            <a href="about.html">Об Нас</a>
+            <a href="projects.html">Каллы Проект</a>
+            <a href="comments.html">Комментарии</a>
+            <div class="auth-links">
+                <a href="login.html" id="loginLink">Войти</a>
+                <a href="register.html" id="registerLink">Регистрация</a>
+                <button id="logoutBtn">Выйти</button>
+            </div>
+        </nav>
+        <main>
+            <h1>Комментарии</h1>
+            <div id="auth-message"><p>Пожалуйста, <a href="login.html">войдите</a> или <a href="register.html">зарегистрируйтесь</a>, чтобы оставить комментарий.</p></div>
+            <form id="commentForm">
+                <textarea id="commentText" placeholder="Введите ваш комментарий..." required></textarea>
+                <button type="submit">Отправить</button>
+            </form>
+            <div id="commentsContainer"></div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const commentForm = document.getElementById('commentForm');
+        const authMessage = document.getElementById('auth-message');
+        const commentsContainer = document.getElementById('commentsContainer');
+        
+        let isAuthReady = false;
+
+        onAuthStateChanged(auth, async user => {
+             if (typeof __initial_auth_token !== 'undefined' && auth.currentUser == null) { await signInWithCustomToken(auth, __initial_auth_token); } else if (auth.currentUser == null) { await signInAnonymously(auth); }
+            
+            isAuthReady = true;
+
+            if (user && !user.isAnonymous) {
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+                logoutBtn.style.display = 'inline';
+                commentForm.style.display = 'flex';
+                authMessage.style.display = 'none';
+            } else {
+                loginLink.style.display = 'inline';
+                registerLink.style.display = 'inline';
+                logoutBtn.style.display = 'none';
+                commentForm.style.display = 'none';
+                authMessage.style.display = 'block';
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                window.location.reload();
+            }).catch((error) => console.error("Sign out error", error));
+        });
+
+        commentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const commentText = document.getElementById('commentText').value;
+            const user = auth.currentUser;
+            if (!user || commentText.trim() === '') return;
+
+            try {
+                const commentsCollectionPath = `/artifacts/${appId}/public/data/comments`;
+                await addDoc(collection(db, commentsCollectionPath), {
+                    text: commentText,
+                    author: user.email,
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('commentText').value = '';
+            } catch (error) {
+                console.error("Error adding document: ", error);
+            }
+        });
+
+        function listenForComments() {
+             if (!isAuthReady) {
+                setTimeout(listenForComments, 100);
+                return;
+            }
+            const commentsCollectionPath = `/artifacts/${appId}/public/data/comments`;
+            const q = query(collection(db, commentsCollectionPath));
+
+            onSnapshot(q, (querySnapshot) => {
+                const comments = [];
+                querySnapshot.forEach((doc) => {
+                    comments.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Sort comments by creation date
+                comments.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+                commentsContainer.innerHTML = '';
+                comments.forEach(comment => {
+                    const commentEl = document.createElement('div');
+                    commentEl.classList.add('comment');
+                    const date = comment.createdAt ? new Date(comment.createdAt.seconds * 1000).toLocaleString('ru-RU') : 'только что';
+                    commentEl.innerHTML = `
+                        <p class="comment-author">${comment.author || 'Аноним'}<span class="comment-date">${date}</span></p>
+                        <p class="comment-text">${comment.text}</p>
+                    `;
+                    commentsContainer.appendChild(commentEl);
+                });
+            }, (error) => {
+                console.error("Error fetching comments: ", error);
+            });
+        }
+        
+        listenForComments();
+
+    </script>
+</body>
+</html>
