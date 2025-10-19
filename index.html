@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Главная</title>
+    <title>Бещастный Нищите Сайт</title>
     <style>
         body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
         .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
@@ -15,7 +15,6 @@
         #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; display: none; }
         #logoutBtn:hover { text-decoration: underline; }
         h1 { font-size: 2.5em; font-weight: normal; }
-        p { line-height: 1.6; }
     </style>
 </head>
 <body>
@@ -36,11 +35,14 @@
             <p>Добро пожаловать на наш нищитный сайт. Этого сайт находится в стране "Говно". Также у говна есть своя вики. Не забудьте что все члены этого вебсайта это члены экипажа и как бы наш главный лидер питушар: "Итали Чикен" щас под подушкой смотрит на вашу маму и готов достать члены. Как я обожаю вас как членов уффф я скуф если что вот мой номер: +38066420424</p>
         </main>
     </div>
+
     <script type="module">
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // This line connects to your new config file
+        import { firebaseConfig } from './firebase-config.js';
+
+        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
@@ -48,20 +50,25 @@
         const registerLink = document.getElementById('registerLink');
         const logoutBtn = document.getElementById('logoutBtn');
 
+        // Check authentication state
         onAuthStateChanged(auth, user => {
-            if (user) {
+            if (user && !user.isAnonymous) {
+                // User is signed in
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
             } else {
+                // User is signed out
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
             }
         });
 
+        // Handle logout
         logoutBtn.addEventListener('click', () => {
             signOut(auth).then(() => {
+                // Redirect to home page after sign out
                 window.location.href = 'index.html';
             }).catch((error) => {
                 console.error("Sign out error", error);
@@ -70,8 +77,4 @@
     </script>
 </body>
 </html>
-
-
-
-
 
