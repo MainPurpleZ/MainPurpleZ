@@ -20,11 +20,13 @@
         #comment-form button { padding: 0.7em; font-size: 1em; background-color: #0056b3; color: white; border: none; cursor: pointer; font-family: "Times New Roman", Times, serif; align-self: flex-start; }
         #comment-form button:hover { background-color: #003d82; }
         #comments-container { margin-top: 2em; border-top: 1px solid #ddd; padding-top: 1em; }
-        .comment { border-bottom: 1px solid #eee; padding: 1em; position: relative; transition: background-color: 0.3s; }
+        .comment { border-bottom: 1px solid #eee; padding: 1em; position: relative; transition: background-color 0.3s; }
         .comment.pinned { background-color: #fffbe6; border-left: 4px solid #f0ad4e; }
         .comment-author { font-weight: bold; color: #0056b3; margin-bottom: 0.3em; }
+        .comment-author.admin-clickable { cursor: pointer; text-decoration: underline; }
+        .comment-author.admin-clickable:hover { color: #003d82; }
         .comment-date { font-size: 0.8em; color: #888; margin-bottom: 0.5em; }
-        .comment-text { line-height: 1.5; }
+        .comment-text { line-height: 1.5; white-space: pre-wrap; }
         #login-prompt { display: block; margin-top: 2em; font-style: italic; }
         .comment-actions { position: absolute; top: 1em; right: 1em; display: flex; gap: 0.5em; }
         .comment-actions button { background: none; border: 1px solid #ccc; cursor: pointer; padding: 0.3em 0.6em; font-size: 0.8em; border-radius: 4px; }
@@ -32,6 +34,14 @@
         .comment-actions .pin-btn:hover { background-color: #fcf8e3; color: #8a6d3b; border-color: #8a6d3b; }
         #admin-panel { display: none; background-color: #fbecec; border: 1px solid #d9534f; padding: 1em; margin-bottom: 1em; }
         #admin-panel button { background-color: #d9534f; color: white; border: none; padding: 0.8em 1.2em; cursor: pointer; }
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: #fff; padding: 2em; border-radius: 5px; width: 90%; max-width: 500px; position: relative; }
+        .modal-close { position: absolute; top: 10px; right: 15px; font-size: 2em; font-weight: bold; cursor: pointer; }
+        .modal-content h2 { margin-top: 0; }
+        .profile-info p { margin: 0.5em 0; }
+        .profile-info strong { color: #333; }
+        .last-comment { background-color: #f9f9f9; border-left: 3px solid #ccc; padding: 1em; margin-top: 1em; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -49,29 +59,34 @@
         </nav>
         <main>
             <h1>Комментарии</h1>
-
             <div id="admin-panel">
                 <h2>Панель администратора</h2>
                 <button id="clear-chat-btn">Очистить все комментарии</button>
             </div>
-
             <p id="login-prompt">Пожалуйста, <a href="login.html">войдите</a> или <a href="register.html">зарегистрируйтесь</a>, чтобы оставлять комментарии.</p>
-            
             <form id="comment-form">
                 <textarea id="comment-input" placeholder="Введите ваш комментарий..." required></textarea>
                 <button type="submit">Отправить</button>
             </form>
-
-            <div id="comments-container">
-                <!-- Comments will be loaded here -->
-            </div>
+            <div id="comments-container"></div>
         </main>
+    </div>
+
+    <!-- User Profile Modal -->
+    <div class="modal-overlay" id="profile-modal">
+        <div class="modal-content">
+            <span class="modal-close" id="modal-close-btn">&times;</span>
+            <h2>Данные пользователя</h2>
+            <div class="profile-info" id="profile-info-content">
+                <!-- Profile data will be injected here -->
+            </div>
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, getDocs, where, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
@@ -90,6 +105,9 @@
         const commentsContainer = document.getElementById('comments-container');
         const adminPanel = document.getElementById('admin-panel');
         const clearChatBtn = document.getElementById('clear-chat-btn');
+        const profileModal = document.getElementById('profile-modal');
+        const profileInfoContent = document.getElementById('profile-info-content');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
         const appId = 'default-app-id';
 
         const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
@@ -123,6 +141,7 @@
                 await addDoc(commentsRef, {
                     text: commentText,
                     author: user.email,
+                    authorUID: user.uid, // Store UID for future reference
                     createdAt: serverTimestamp(),
                     pinned: false
                 });
@@ -139,7 +158,7 @@
             if (!currentUserIsAdmin) return;
             await updateDoc(doc(db, `/artifacts/${appId}/public/data/comments`, id), { pinned: !currentState });
         };
-
+        
         const clearAllComments = async () => {
             if (!currentUserIsAdmin || !confirm("ВЫ УВЕРЕНЫ, ЧТО ХОТИТЕ УДАЛИТЬ ВСЕ КОММЕНТАРИИ? ЭТО ДЕЙСТВИЕ НЕОБРАТИМО.")) return;
             const snapshot = await getDocs(commentsRef);
@@ -147,6 +166,48 @@
         };
 
         clearChatBtn.addEventListener('click', clearAllComments);
+        
+        modalCloseBtn.addEventListener('click', () => profileModal.style.display = 'none');
+        profileModal.addEventListener('click', (e) => {
+            if (e.target === profileModal) {
+                profileModal.style.display = 'none';
+            }
+        });
+
+        const showUserProfile = async (userEmail, userUID) => {
+            if (!currentUserIsAdmin) return;
+            
+            profileInfoContent.innerHTML = '<p>Загрузка данных...</p>';
+            profileModal.style.display = 'flex';
+
+            let creationTimeText = 'Недоступно';
+            // Note: We can only get creation time for the currently logged-in user.
+            // This is a Firebase client-side security limitation.
+            if (auth.currentUser && auth.currentUser.email === userEmail) {
+                creationTimeText = auth.currentUser.metadata.creationTime ? new Date(auth.currentUser.metadata.creationTime).toLocaleString('ru-RU') : 'Неизвестно';
+            }
+
+            const lastCommentQuery = query(commentsRef, where("author", "==", userEmail), orderBy("createdAt", "desc"), limit(1));
+            const snapshot = await getDocs(lastCommentQuery);
+
+            let lastCommentHTML = '<p><strong>Последний комментарий:</strong> Пользователь еще не оставлял комментариев.</p>';
+            if (!snapshot.empty) {
+                const lastComment = snapshot.docs[0].data();
+                lastCommentHTML = `
+                    <p><strong>Последний комментарий:</strong></p>
+                    <div class="last-comment">
+                        <p>${lastComment.text}</p>
+                        <small>${lastComment.createdAt ? lastComment.createdAt.toDate().toLocaleString('ru-RU') : ''}</small>
+                    </div>
+                `;
+            }
+
+            profileInfoContent.innerHTML = `
+                <p><strong>Email:</strong> ${userEmail}</p>
+                <p><strong>Аккаунт создан:</strong> ${creationTimeText}</p>
+                ${lastCommentHTML}
+            `;
+        };
 
         const commentsQuery = query(commentsRef, orderBy("pinned", "desc"), orderBy("createdAt", "desc"));
         onSnapshot(commentsQuery, (snapshot) => {
@@ -155,13 +216,15 @@
                 const comment = { id: doc.id, ...doc.data() };
                 const commentElement = document.createElement('div');
                 commentElement.classList.add('comment');
-                if (comment.pinned) {
-                    commentElement.classList.add('pinned');
-                }
+                if (comment.pinned) commentElement.classList.add('pinned');
 
                 const authorElement = document.createElement('div');
                 authorElement.classList.add('comment-author');
                 authorElement.textContent = comment.author;
+                if (currentUserIsAdmin) {
+                    authorElement.classList.add('admin-clickable');
+                    authorElement.onclick = () => showUserProfile(comment.author, comment.authorUID);
+                }
 
                 const dateElement = document.createElement('div');
                 dateElement.classList.add('comment-date');
@@ -178,25 +241,22 @@
                 if (currentUserIsAdmin) {
                     const actionsElement = document.createElement('div');
                     actionsElement.classList.add('comment-actions');
-
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Удалить';
                     deleteBtn.classList.add('delete-btn');
                     deleteBtn.onclick = () => deleteComment(comment.id);
-
                     const pinBtn = document.createElement('button');
                     pinBtn.textContent = comment.pinned ? 'Открепить' : 'Закрепить';
                     pinBtn.classList.add('pin-btn');
                     pinBtn.onclick = () => togglePinComment(comment.id, comment.pinned);
-                    
                     actionsElement.appendChild(pinBtn);
-                    actionsElement.appendChild(deleteBtn);
+actionsElement.appendChild(deleteBtn);
                     commentElement.appendChild(actionsElement);
                 }
                 commentsContainer.appendChild(commentElement);
             });
         }, (error) => {
-            console.error(error);
+            console.error("Firestore snapshot error:", error);
             if (error.code === 'failed-precondition') {
                 commentsContainer.innerHTML = `<p style="color: red;"><b>Критическая ошибка:</b> Базе данных требуется специальный индекс для сортировки. Откройте консоль разработчика (F12), найдите в ошибке ссылку и перейдите по ней, чтобы создать индекс в вашей Firebase Console.</p>`;
             }
