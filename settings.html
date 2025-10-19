@@ -1,0 +1,207 @@
+<!-- settings.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --container-bg: #ffffff;
+            --border-color: #ddd;
+            --link-color: #0056b3;
+            --button-bg: #0056b3;
+            --button-hover-bg: #003d82;
+        }
+        .dark-theme {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --container-bg: #1e1e1e;
+            --border-color: #444;
+            --link-color: #90caf9;
+            --button-bg: #90caf9;
+            --button-hover-bg: #77a9d1;
+        }
+        body { font-family: "Times New Roman", Times, serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 2em; transition: background-color 0.3s, color 0.3s; }
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); }
+        nav { padding-bottom: 1em; border-bottom: 1px solid var(--border-color); margin-bottom: 2em; display: flex; align-items: center; }
+        nav a { margin-right: 20px; color: var(--link-color); text-decoration: none; font-size: 1.1em; }
+        .auth-links { margin-left: auto; }
+        #logoutBtn { /* ... styles ... */ }
+        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; line-height: 1; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
+        .settings-section { margin-bottom: 2em; }
+        .settings-section h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5em; }
+        .settings-form { display: flex; flex-direction: column; gap: 1em; max-width: 400px; }
+        .settings-form label { font-weight: bold; }
+        .settings-form input { padding: 0.7em; font-size: 1em; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-color); }
+        .settings-form button { padding: 0.7em; font-size: 1em; background-color: var(--button-bg); color: var(--container-bg); border: none; cursor: pointer; }
+        .delete-section button { background-color: #d9534f; }
+        #message { margin-top: 1em; padding: 1em; display: none; }
+        #message.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
+        #message.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">Главная</a>
+            <a href="about.html">Об Нас</a>
+            <a href="projects.html">Каллы Проект</a>
+            <a href="comments.html">Комментарии</a>
+            <div class="auth-links">
+                <a href="settings.html" id="settingsLink">Настройки</a>
+                <a href="login.html" id="loginLink">Войти</a>
+                <a href="register.html" id="registerLink">Регистрация</a>
+                <button id="logoutBtn">Выйти</button>
+                <button id="theme-toggle">☀️</button>
+            </div>
+        </nav>
+        <main id="settings-content" style="display:none;">
+            <h1>Настройки профиля</h1>
+            <div id="message"></div>
+
+            <div class="settings-section">
+                <h2>Сменить пароль</h2>
+                <form id="change-password-form" class="settings-form">
+                    <label for="current-password">Текущий пароль</label>
+                    <input type="password" id="current-password" required>
+                    <label for="new-password">Новый пароль</label>
+                    <input type="password" id="new-password" required>
+                    <button type="submit">Сменить пароль</button>
+                </form>
+            </div>
+
+            <div class="settings-section delete-section">
+                <h2>Удалить аккаунт</h2>
+                <p>Это действие необратимо. Все ваши комментарии и данные будут удалены навсегда.</p>
+                <form id="delete-account-form" class="settings-form">
+                     <label for="delete-confirm-password">Введите текущий пароль для подтверждения</label>
+                    <input type="password" id="delete-confirm-password" required>
+                    <button type="submit">Удалить аккаунт</button>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from './firebase-config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        const settingsContent = document.getElementById('settings-content');
+        const messageDiv = document.getElementById('message');
+        const changePasswordForm = document.getElementById('change-password-form');
+        const deleteAccountForm = document.getElementById('delete-account-form');
+        const appId = 'default-app-id';
+
+        // --- Theme Switcher Logic ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const loadTheme = () => {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggle.textContent = '☀️';
+            }
+        };
+        const saveTheme = (theme) => localStorage.setItem('theme', theme);
+
+        themeToggle.addEventListener('click', () => {
+            if (document.body.classList.contains('dark-theme')) {
+                document.body.classList.remove('dark-theme');
+                saveTheme('light');
+                themeToggle.textContent = '☀️';
+            } else {
+                document.body.classList.add('dark-theme');
+                saveTheme('dark');
+                themeToggle.textContent = '🌙';
+            }
+        });
+        loadTheme(); // Load theme on page start
+
+        // --- Auth State Logic ---
+        onAuthStateChanged(auth, user => {
+            const loginLink = document.getElementById('loginLink');
+            const registerLink = document.getElementById('registerLink');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const settingsLink = document.getElementById('settingsLink');
+
+            if (user && !user.isAnonymous) {
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+                logoutBtn.style.display = 'inline';
+                settingsLink.style.display = 'inline';
+                settingsContent.style.display = 'block';
+            } else {
+                window.location.href = 'login.html'; // Redirect if not logged in
+            }
+        });
+        
+        const showMessage = (text, type) => {
+            messageDiv.textContent = text;
+            messageDiv.className = type;
+            messageDiv.style.display = 'block';
+            setTimeout(() => messageDiv.style.display = 'none', 5000);
+        };
+
+        // --- Change Password Logic ---
+        changePasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = auth.currentUser;
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+
+            const credential = EmailAuthProvider.credential(user.email, currentPassword);
+            try {
+                await reauthenticateWithCredential(user, credential);
+                await updatePassword(user, newPassword);
+                showMessage("Пароль успешно изменен!", 'success');
+                changePasswordForm.reset();
+            } catch (error) {
+                console.error("Password change error:", error);
+                showMessage("Ошибка: Неверный текущий пароль или другой сбой.", 'error');
+            }
+        });
+
+        // --- Delete Account Logic ---
+        deleteAccountForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = auth.currentUser;
+            const password = document.getElementById('delete-confirm-password').value;
+
+            if (!confirm("ВЫ УВЕРЕНЫ, ЧТО ХОТИТЕ УДАЛИТЬ АККАУНТ? ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ.")) return;
+
+            const credential = EmailAuthProvider.credential(user.email, password);
+            try {
+                await reauthenticateWithCredential(user, credential);
+
+                // Delete user's comments
+                const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
+                const q = query(commentsRef, where("authorUID", "==", user.uid));
+                const snapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                snapshot.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+
+                // Delete user account
+                await deleteUser(user);
+                alert("Ваш аккаунт и все ваши данные были удалены.");
+                window.location.href = "index.html";
+
+            } catch (error) {
+                console.error("Account deletion error:", error);
+                showMessage("Ошибка: Неверный пароль. Аккаунт не удален.", 'error');
+            }
+        });
+    </script>
+</body>
+</html>
