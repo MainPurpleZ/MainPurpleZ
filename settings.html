@@ -15,6 +15,8 @@
             --button-bg: #0056b3;
             --button-hover-bg: #003d82;
             --button-text-color: white;
+            --error-color: #d9534f;
+            --success-color: #5cb85c;
         }
         .dark-theme {
             --bg-color: #121212;
@@ -34,18 +36,17 @@
         #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; }
         #logoutBtn:hover { text-decoration: underline; }
         #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; line-height: 1; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
-        h1, h2 { color: var(--text-color); }
+        h1, h2 { color: var(--text-color); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5em; margin-bottom: 1em; }
         .settings-section { margin-bottom: 2.5em; }
-        .settings-section h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5em; margin-bottom: 1em;}
-        .settings-form { display: flex; flex-direction: column; gap: 1em; max-width: 400px; }
-        .settings-form label { font-weight: bold; }
-        .settings-form input, .settings-form textarea { padding: 0.7em; font-size: 1em; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-color); font-family: "Times New Roman", Times, serif; }
-        .settings-form textarea { resize: vertical; min-height: 100px; }
-        .settings-form button { padding: 0.7em; font-size: 1em; background-color: var(--button-bg); color: var(--button-text-color); border: none; cursor: pointer; }
-        .delete-section button { background-color: #d9534f; color: white; }
-        #message { margin-top: 1em; padding: 1em; border-radius: 4px; display: none; }
-        #message.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
-        #message.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+        form { display: flex; flex-direction: column; gap: 1em; max-width: 400px; }
+        label { font-weight: bold; }
+        input, textarea { width: 100%; box-sizing: border-box; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); padding: 0.7em; font-size: 1em; font-family: "Times New Roman", Times, serif; }
+        button { background-color: var(--button-bg); color: var(--button-text-color); border: none; cursor: pointer; padding: 0.8em 1.2em; font-size: 1em; align-self: flex-start; }
+        button:hover { background-color: var(--button-hover-bg); }
+        #delete-account-btn { background-color: var(--error-color); }
+        .message { padding: 1em; margin-top: 1em; border-radius: 4px; display: none; }
+        .message.error { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+        .message.success { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
     </style>
 </head>
 <body>
@@ -64,62 +65,73 @@
                 <button id="theme-toggle">☀️</button>
             </div>
         </nav>
-        <main id="settings-content" style="display:none;">
+        <main id="main-content" style="display: none;">
             <h1>Настройки профиля</h1>
-            <div id="message"></div>
 
             <div class="settings-section">
-                <h2>Связаться с администратором</h2>
-                <p>Если у вас есть вопрос или проблема, опишите ее здесь. Ваше сообщение будет видно только администрации.</p>
-                <form id="contact-admin-form" class="settings-form">
-                    <label for="contact-message">Ваше сообщение</label>
-                    <textarea id="contact-message" required></textarea>
-                    <button type="submit">Отправить сообщение</button>
-                </form>
-            </div>
-
-            <div class="settings-section">
-                <h2>Сменить пароль</h2>
-                <form id="change-password-form" class="settings-form">
+                <h2>Смена пароля</h2>
+                <form id="change-password-form">
                     <label for="current-password">Текущий пароль</label>
                     <input type="password" id="current-password" required>
                     <label for="new-password">Новый пароль</label>
                     <input type="password" id="new-password" required>
                     <button type="submit">Сменить пароль</button>
                 </form>
+                <div id="password-message" class="message"></div>
             </div>
 
-            <div class="settings-section delete-section">
-                <h2>Удалить аккаунт</h2>
-                <p>Это действие необратимо. Все ваши комментарии и данные будут удалены навсегда.</p>
-                <form id="delete-account-form" class="settings-form">
-                     <label for="delete-confirm-password">Введите текущий пароль для подтверждения</label>
-                    <input type="password" id="delete-confirm-password" required>
-                    <button type="submit">Удалить аккаунт</button>
+            <div class="settings-section">
+                <h2>Связаться с администратором</h2>
+                <form id="contact-admin-form">
+                    <label for="contact-message">Ваше сообщение</label>
+                    <textarea id="contact-message" rows="5" required placeholder="Опишите вашу проблему или вопрос..."></textarea>
+                    <button type="submit">Отправить</button>
                 </form>
+                 <div id="contact-message-status" class="message"></div>
+            </div>
+            
+            <div class="settings-section">
+                <h2>Удаление аккаунта</h2>
+                <p>Это действие необратимо. Все ваши комментарии и данные будут удалены.</p>
+                <form id="delete-account-form">
+                    <label for="delete-password">Введите ваш пароль для подтверждения</label>
+                    <input type="password" id="delete-password" required>
+                    <button type="submit" id="delete-account-btn">Удалить аккаунт</button>
+                </form>
+                <div id="delete-message" class="message"></div>
             </div>
         </main>
+        <p id="login-prompt">Пожалуйста, <a href="login.html">войдите</a>, чтобы получить доступ к настройкам.</p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, query, where, getDocs, writeBatch, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, onAuthStateChanged, signOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        const settingsContent = document.getElementById('settings-content');
-        const messageDiv = document.getElementById('message');
-        const changePasswordForm = document.getElementById('change-password-form');
-        const deleteAccountForm = document.getElementById('delete-account-form');
-        const contactAdminForm = document.getElementById('contact-admin-form');
-        const appId = 'default-app-id';
-        const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
 
-        // --- Theme Switcher Logic ---
+        const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
+        const appId = 'default-app-id';
+
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const settingsLink = document.getElementById('settingsLink');
+        const messagesLink = document.getElementById('messagesLink');
+        const mainContent = document.getElementById('main-content');
+        const loginPrompt = document.getElementById('login-prompt');
+
+        const changePasswordForm = document.getElementById('change-password-form');
+        const passwordMessage = document.getElementById('password-message');
+        const deleteAccountForm = document.getElementById('delete-account-form');
+        const deleteMessage = document.getElementById('delete-message');
+        const contactAdminForm = document.getElementById('contact-admin-form');
+        const contactMessageStatus = document.getElementById('contact-message-status');
+
         const themeToggle = document.getElementById('theme-toggle');
         const loadTheme = () => {
             const theme = localStorage.getItem('theme');
@@ -132,6 +144,7 @@
             }
         };
         const saveTheme = (theme) => localStorage.setItem('theme', theme);
+
         themeToggle.addEventListener('click', () => {
             if (document.body.classList.contains('dark-theme')) {
                 document.body.classList.remove('dark-theme');
@@ -145,109 +158,89 @@
         });
         loadTheme();
 
-        // --- Auth State Logic ---
-        const loginLink = document.getElementById('loginLink');
-        const registerLink = document.getElementById('registerLink');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const settingsLink = document.getElementById('settingsLink');
-        const messagesLink = document.getElementById('messagesLink');
+        const showMessage = (element, text, isError = true) => {
+            element.textContent = text;
+            element.className = isError ? 'message error' : 'message success';
+            element.style.display = 'block';
+        };
 
         onAuthStateChanged(auth, user => {
-            const isAdmin = user && adminEmails.includes(user.email);
-            messagesLink.style.display = isAdmin ? 'inline' : 'none';
-
             if (user && !user.isAnonymous) {
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
                 settingsLink.style.display = 'inline';
-                settingsContent.style.display = 'block';
-            } else {
-                window.location.href = 'login.html';
-            }
-        });
-        
-        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
+                mainContent.style.display = 'block';
+                loginPrompt.style.display = 'none';
 
-        const showMessage = (text, type) => {
-            messageDiv.textContent = text;
-            messageDiv.className = type;
-            messageDiv.style.display = 'block';
-            window.scrollTo(0, 0);
-            setTimeout(() => messageDiv.style.display = 'none', 5000);
-        };
+                if (adminEmails.includes(user.email)) {
+                    messagesLink.style.display = 'inline';
+                }
 
-        // --- Contact Admin Logic ---
-        contactAdminForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = auth.currentUser;
-            const messageText = document.getElementById('contact-message').value.trim();
-            if (!user || !messageText) return;
-
-            const userMessagesRef = collection(db, `/artifacts/${appId}/public/data/privateMessages/${user.uid}/messages`);
-            try {
-                await addDoc(userMessagesRef, {
-                    text: messageText,
-                    senderEmail: user.email,
-                    createdAt: serverTimestamp()
+                changePasswordForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const currentPassword = document.getElementById('current-password').value;
+                    const newPassword = document.getElementById('new-password').value;
+                    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                    try {
+                        await reauthenticateWithCredential(user, credential);
+                        await updatePassword(user, newPassword);
+                        showMessage(passwordMessage, "Пароль успешно изменен!", false);
+                        changePasswordForm.reset();
+                    } catch (error) {
+                        showMessage(passwordMessage, "Ошибка: Неверный текущий пароль.");
+                        console.error("Password change error:", error);
+                    }
                 });
-                showMessage("Ваше сообщение отправлено администратору.", 'success');
-                contactAdminForm.reset();
-            } catch (error) {
-                console.error("Error sending message:", error);
-                showMessage("Не удалось отправить сообщение. Попробуйте позже.", 'error');
+
+                deleteAccountForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    if (!confirm("ВЫ УВЕРЕНЫ? Это действие необратимо.")) return;
+                    const password = document.getElementById('delete-password').value;
+                    const credential = EmailAuthProvider.credential(user.email, password);
+                    try {
+                        await reauthenticateWithCredential(user, credential);
+                        await deleteUser(user);
+                        alert("Аккаунт успешно удален.");
+                        window.location.href = 'index.html';
+                    } catch (error) {
+                        showMessage(deleteMessage, "Ошибка: Неверный пароль.");
+                        console.error("Account deletion error:", error);
+                    }
+                });
+
+                contactAdminForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const messageText = document.getElementById('contact-message').value.trim();
+                    if (!messageText) return;
+                    try {
+                        const userMessagesRef = collection(db, `/artifacts/${appId}/public/data/adminMessages/${user.uid}/messages`);
+                        await addDoc(userMessagesRef, {
+                            text: messageText,
+                            sender: user.email,
+                            createdAt: serverTimestamp()
+                        });
+
+                        showMessage(contactMessageStatus, "Ваше сообщение успешно отправлено!", false);
+                        contactAdminForm.reset();
+                    } catch (error) {
+                        showMessage(contactMessageStatus, "Произошла ошибка при отправке сообщения.");
+                        console.error("Error sending message:", error);
+                    }
+                });
+
+            } else {
+                loginLink.style.display = 'inline';
+                registerLink.style.display = 'inline';
+                logoutBtn.style.display = 'none';
+                settingsLink.style.display = 'none';
+                messagesLink.style.display = 'none';
+                mainContent.style.display = 'none';
+                loginPrompt.style.display = 'block';
             }
         });
 
-        // --- Change Password Logic ---
-        changePasswordForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = auth.currentUser;
-            const currentPassword = document.getElementById('current-password').value;
-            const newPassword = document.getElementById('new-password').value;
-
-            const credential = EmailAuthProvider.credential(user.email, currentPassword);
-            try {
-                await reauthenticateWithCredential(user, credential);
-                await updatePassword(user, newPassword);
-                showMessage("Пароль успешно изменен!", 'success');
-                changePasswordForm.reset();
-            } catch (error) {
-                console.error("Password change error:", error);
-                showMessage("Ошибка: Неверный текущий пароль или другой сбой.", 'error');
-            }
-        });
-
-        // --- Delete Account Logic ---
-        deleteAccountForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = auth.currentUser;
-            const password = document.getElementById('delete-confirm-password').value;
-
-            if (!confirm("ВЫ УВЕРЕНЫ, ЧТО ХОТИТЕ УДАЛИТЬ АККАУНТ? ЭТО ДЕЙСТВИЕ НЕЛЬЗЯ ОТМЕНИТЬ.")) return;
-
-            const credential = EmailAuthProvider.credential(user.email, password);
-            try {
-                await reauthenticateWithCredential(user, credential);
-
-                // Delete user's comments
-                const commentsRef = collection(db, `/artifacts/${appId}/public/data/comments`);
-                const q = query(commentsRef, where("authorUID", "==", user.uid));
-                const snapshot = await getDocs(q);
-                const batch = writeBatch(db);
-                snapshot.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-
-                // Delete user account
-                await deleteUser(user);
-                alert("Ваш аккаунт и все ваши данные были удалены.");
-                window.location.href = "index.html";
-
-            } catch (error) {
-                console.error("Account deletion error:", error);
-                showMessage("Ошибка: Неверный пароль. Аккаунт не удален.", 'error');
-            }
-        });
+        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
     </script>
 </body>
 </html>
