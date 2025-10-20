@@ -6,19 +6,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Войти</title>
     <style>
-        body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
-        .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
-        nav { padding-bottom: 1em; border-bottom: 1px solid #ddd; margin-bottom: 2em; display: flex; align-items: center; }
-        nav a { margin-right: 20px; color: #0056b3; text-decoration: none; font-size: 1.1em; }
-        nav a:hover { text-decoration: underline; }
-        .auth-links { margin-left: auto; }
-        #logoutBtn { display: none; } /* Not needed on this page */
-        h1 { font-size: 2.5em; font-weight: normal; }
-        form { display: flex; flex-direction: column; gap: 1em; max-width: 300px; }
-        input { padding: 0.7em; font-size: 1em; border: 1px solid #ccc; font-family: "Times New Roman", Times, serif; }
-        button { padding: 0.7em; font-size: 1em; background-color: #0056b3; color: white; border: none; cursor: pointer; font-family: "Times New Roman", Times, serif; }
-        button:hover { background-color: #003d82; }
-        #error-message { color: #d9534f; margin-top: 1em; }
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --container-bg: #ffffff;
+            --border-color: #ddd;
+            --link-color: #0056b3;
+            --button-bg: #0056b3;
+            --button-hover-bg: #003d82;
+            --button-text-color: white;
+            --error-color: #d9534f;
+        }
+        .dark-theme {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --container-bg: #1e1e1e;
+            --border-color: #444;
+            --link-color: #90caf9;
+            --button-bg: #90caf9;
+            --button-hover-bg: #77a9d1;
+            --button-text-color: #1e1e1e;
+        }
+        body { font-family: "Times New Roman", Times, serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 2em; transition: background-color 0.3s, color 0.3s; }
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); }
+        nav { padding-bottom: 1em; border-bottom: 1px solid var(--border-color); margin-bottom: 2em; display: flex; align-items: center; flex-wrap: wrap; }
+        nav a { margin-right: 20px; color: var(--link-color); text-decoration: none; font-size: 1.1em; }
+        .auth-links { margin-left: auto; display: flex; align-items: center; }
+        #logoutBtn { background: none; border: none; color: var(--error-color); cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; }
+        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; line-height: 1; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
+        h1 { font-size: 2.5em; font-weight: normal; color: var(--text-color); }
+        form { display: flex; flex-direction: column; gap: 1em; max-width: 400px; }
+        input { padding: 0.8em; font-size: 1em; border: 1px solid var(--border-color); background-color: var(--bg-color); color: var(--text-color); }
+        button[type="submit"] { padding: 0.8em; font-size: 1.1em; background-color: var(--button-bg); color: var(--button-text-color); border: none; cursor: pointer; }
+        button[type="submit"]:hover { background-color: var(--button-hover-bg); }
+        #error-message { color: var(--error-color); margin-top: 1em; display: none; }
     </style>
 </head>
 <body>
@@ -29,8 +50,11 @@
             <a href="projects.html">Каллы Проект</a>
             <a href="comments.html">Комментарии</a>
             <div class="auth-links">
+                <a href="settings.html" id="settingsLink" style="display: none;">Настройки</a>
                 <a href="login.html" id="loginLink">Войти</a>
                 <a href="register.html" id="registerLink">Регистрация</a>
+                <button id="logoutBtn" style="display:none;">Выйти</button>
+                <button id="theme-toggle">☀️</button>
             </div>
         </nav>
         <main>
@@ -46,30 +70,84 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // This line connects to your new config file
+        import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { firebaseConfig } from './firebase-config.js';
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const settingsLink = document.getElementById('settingsLink');
         const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
         const errorMessage = document.getElementById('error-message');
+        
+        const themeToggle = document.getElementById('theme-toggle');
+        const loadTheme = () => {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggle.textContent = '☀️';
+            }
+        };
+        const saveTheme = (theme) => localStorage.setItem('theme', theme);
+
+        themeToggle.addEventListener('click', () => {
+            if (document.body.classList.contains('dark-theme')) {
+                document.body.classList.remove('dark-theme');
+                saveTheme('light');
+                themeToggle.textContent = '☀️';
+            } else {
+                document.body.classList.add('dark-theme');
+                saveTheme('dark');
+                themeToggle.textContent = '🌙';
+            }
+        });
+        loadTheme();
+
+        onAuthStateChanged(auth, user => {
+            if (user && !user.isAnonymous) {
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+                logoutBtn.style.display = 'inline';
+                settingsLink.style.display = 'inline';
+            } else {
+                loginLink.style.display = 'inline';
+                registerLink.style.display = 'inline';
+                logoutBtn.style.display = 'none';
+                settingsLink.style.display = 'none';
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                window.location.href = 'index.html';
+            });
+        });
 
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = emailInput.value;
+            const password = passwordInput.value;
+
+            errorMessage.textContent = '';
+            errorMessage.style.display = 'none';
 
             signInWithEmailAndPassword(auth, email, password)
                 .then((userCredential) => {
-                    // Signed in
-                    window.location.href = 'index.html';
+                    // Signed in 
+                    window.location.href = 'comments.html';
                 })
                 .catch((error) => {
-                    errorMessage.textContent = 'Неверный email или пароль.';
                     console.error("Login error:", error);
+                    errorMessage.textContent = "Неверный email или пароль.";
+                    errorMessage.style.display = 'block';
                 });
         });
     </script>
