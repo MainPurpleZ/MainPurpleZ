@@ -139,6 +139,7 @@
 
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+                await signOut(auth); // ВЫХОДИМ ИЗ СИСТЕМЫ СРАЗУ ПОСЛЕ РЕГИСТРАЦИИ
                 alert("Регистрация прошла успешно! Теперь вы можете войти.");
                 window.location.href = 'login.html';
             } catch (error) {
