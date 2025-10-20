@@ -6,15 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Об Нас</title>
     <style>
-        body { font-family: "Times New Roman", Times, serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 2em; }
-        .container { max-width: 800px; margin: 0 auto; background-color: #ffffff; padding: 2em; border: 1px solid #ddd; }
-        nav { padding-bottom: 1em; border-bottom: 1px solid #ddd; margin-bottom: 2em; display: flex; align-items: center; }
-        nav a { margin-right: 20px; color: #0056b3; text-decoration: none; font-size: 1.1em; }
-        nav a:hover { text-decoration: underline; }
-        .auth-links { margin-left: auto; }
-        #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; display: none; }
-        #logoutBtn:hover { text-decoration: underline; }
-        h1 { font-size: 2.5em; font-weight: normal; }
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --container-bg: #ffffff;
+            --border-color: #ddd;
+            --link-color: #0056b3;
+        }
+        .dark-theme {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --container-bg: #1e1e1e;
+            --border-color: #444;
+            --link-color: #90caf9;
+        }
+        body { font-family: "Times New Roman", Times, serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 2em; transition: background-color 0.3s, color 0.3s; }
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); }
+        nav { padding-bottom: 1em; border-bottom: 1px solid var(--border-color); margin-bottom: 2em; display: flex; align-items: center; flex-wrap: wrap; }
+        nav a { margin-right: 20px; color: var(--link-color); text-decoration: none; font-size: 1.1em; }
+        .auth-links { margin-left: auto; display: flex; align-items: center; }
+        #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; }
+        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; line-height: 1; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
+        h1 { font-size: 2.5em; font-weight: normal; color: var(--text-color); }
+        p { font-size: 1.2em; line-height: 1.6; color: var(--text-color); }
     </style>
 </head>
 <body>
@@ -25,9 +39,11 @@
             <a href="projects.html">Каллы Проект</a>
             <a href="comments.html">Комментарии</a>
             <div class="auth-links">
+                <a href="settings.html" id="settingsLink" style="display: none;">Настройки</a>
                 <a href="login.html" id="loginLink">Войти</a>
                 <a href="register.html" id="registerLink">Регистрация</a>
-                <button id="logoutBtn">Выйти</button>
+                <button id="logoutBtn" style="display:none;">Выйти</button>
+                <button id="theme-toggle">☀️</button>
             </div>
         </nav>
         <main>
@@ -37,41 +53,61 @@
     </div>
 
     <script type="module">
-        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // This line connects to your new config file
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { firebaseConfig } from './firebase-config.js';
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
         const loginLink = document.getElementById('loginLink');
         const registerLink = document.getElementById('registerLink');
         const logoutBtn = document.getElementById('logoutBtn');
+        const settingsLink = document.getElementById('settingsLink');
+        
+        const themeToggle = document.getElementById('theme-toggle');
+        const loadTheme = () => {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggle.textContent = '☀️';
+            }
+        };
+        const saveTheme = (theme) => localStorage.setItem('theme', theme);
 
-        // Check authentication state
+        themeToggle.addEventListener('click', () => {
+            if (document.body.classList.contains('dark-theme')) {
+                document.body.classList.remove('dark-theme');
+                saveTheme('light');
+                themeToggle.textContent = '☀️';
+            } else {
+                document.body.classList.add('dark-theme');
+                saveTheme('dark');
+                themeToggle.textContent = '🌙';
+            }
+        });
+        loadTheme();
+
         onAuthStateChanged(auth, user => {
             if (user && !user.isAnonymous) {
-                // User is signed in
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
+                settingsLink.style.display = 'inline';
             } else {
-                // User is signed out
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
+                settingsLink.style.display = 'none';
             }
         });
 
-        // Handle logout
         logoutBtn.addEventListener('click', () => {
             signOut(auth).then(() => {
-                // Redirect to home page after sign out
                 window.location.href = 'index.html';
-            }).catch((error) => {
-                console.error("Sign out error", error);
             });
         });
     </script>
