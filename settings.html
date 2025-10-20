@@ -107,7 +107,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
@@ -214,12 +214,22 @@
                     const messageText = document.getElementById('contact-message').value.trim();
                     if (!messageText) return;
                     try {
-                        const userMessagesRef = collection(db, `/artifacts/${appId}/public/data/adminMessages/${user.uid}/messages`);
-                        await addDoc(userMessagesRef, {
+                        const batch = writeBatch(db);
+                        const conversationDocRef = doc(db, `/artifacts/${appId}/public/data/adminMessages/${user.uid}`);
+                        const newMessageRef = doc(collection(db, `/artifacts/${appId}/public/data/adminMessages/${user.uid}/messages`));
+                        
+                        batch.set(conversationDocRef, { 
+                            email: user.email,
+                            lastMessageAt: serverTimestamp()
+                        }, { merge: true });
+
+                        batch.set(newMessageRef, {
                             text: messageText,
                             sender: user.email,
                             createdAt: serverTimestamp()
                         });
+
+                        await batch.commit();
 
                         showMessage(contactMessageStatus, "Ваше сообщение успешно отправлено!", false);
                         contactAdminForm.reset();
