@@ -12,6 +12,11 @@
             --container-bg: #ffffff;
             --border-color: #ddd;
             --link-color: #0056b3;
+            --button-bg: #0056b3;
+            --button-hover-bg: #003d82;
+            --button-text-color: white;
+            --message-sent-bg: #dff0d8;
+            --message-received-bg: #f1f1f1;
         }
         .dark-theme {
             --bg-color: #121212;
@@ -19,35 +24,38 @@
             --container-bg: #1e1e1e;
             --border-color: #444;
             --link-color: #90caf9;
+            --button-bg: #90caf9;
+            --button-hover-bg: #77a9d1;
+            --button-text-color: #1e1e1e;
+            --message-sent-bg: #2a3d2a;
+            --message-received-bg: #2c2c2c;
         }
         body { font-family: "Times New Roman", Times, serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 2em; transition: background-color 0.3s, color 0.3s; }
-        .container { max-width: 1000px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); }
+        .container { max-width: 1000px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); display: flex; gap: 2em; height: 80vh; }
         nav { padding-bottom: 1em; border-bottom: 1px solid var(--border-color); margin-bottom: 2em; display: flex; align-items: center; flex-wrap: wrap; }
         nav a { margin-right: 20px; color: var(--link-color); text-decoration: none; font-size: 1.1em; }
         .auth-links { margin-left: auto; display: flex; align-items: center; }
         #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; }
         #logoutBtn:hover { text-decoration: underline; }
-        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
+        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; line-height: 1; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
         h1, h2 { color: var(--text-color); }
-        button { font-family: "Times New Roman", Times, serif; }
-        .messaging-layout { display: flex; gap: 2em; height: 70vh; }
-        .conversation-list { width: 30%; border-right: 1px solid var(--border-color); overflow-y: auto; }
-        .chat-window { width: 70%; display: flex; flex-direction: column; }
+        #conversations-list { width: 30%; border-right: 1px solid var(--border-color); overflow-y: auto; padding-right: 1em; }
         .conversation-item { padding: 1em; cursor: pointer; border-bottom: 1px solid var(--border-color); }
         .conversation-item:hover, .conversation-item.active { background-color: var(--bg-color); }
-        .chat-messages { flex-grow: 1; overflow-y: auto; padding: 1em; border: 1px solid var(--border-color); margin-bottom: 1em; display: flex; flex-direction: column; }
-        .message { margin-bottom: 1em; padding: 0.8em; border-radius: 8px; max-width: 80%; word-wrap: break-word; }
-        .message.sent { background-color: #dcf8c6; align-self: flex-end; }
-        .message.received { background-color: #f1f0f0; align-self: flex-start; }
-        .dark-theme .message.sent { background-color: #056162; }
-        .dark-theme .message.received { background-color: #262d31; }
-        .message-sender { font-weight: bold; font-size: 0.8em; margin-bottom: 4px; color: var(--text-color); opacity: 0.7; }
-        .chat-reply-form { display: flex; gap: 1em; }
-        .chat-reply-form textarea { flex-grow: 1; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); }
+        #chat-view { width: 70%; display: flex; flex-direction: column; }
+        #chat-messages { flex-grow: 1; overflow-y: auto; border: 1px solid var(--border-color); padding: 1em; margin-bottom: 1em; display: flex; flex-direction: column-reverse; }
+        .message-bubble { max-width: 70%; padding: 0.7em 1em; border-radius: 15px; margin-bottom: 0.5em; }
+        .message-bubble.sent { background-color: var(--message-sent-bg); align-self: flex-end; }
+        .message-bubble.received { background-color: var(--message-received-bg); align-self: flex-start; }
+        .message-date { font-size: 0.75em; color: #888; margin-top: 5px; }
+        #reply-form { display: flex; gap: 1em; }
+        #reply-input { flex-grow: 1; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); padding: 0.7em; }
+        #reply-form button { background-color: var(--button-bg); color: var(--button-text-color); border: none; cursor: pointer; }
+        #placeholder { text-align: center; margin-top: 5em; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div style="max-width: 1000px; margin: 0 auto;">
         <nav>
             <a href="index.html">Главная</a>
             <a href="about.html">Об Нас</a>
@@ -62,31 +70,29 @@
                 <button id="theme-toggle">☀️</button>
             </div>
         </nav>
-        <main>
-            <h1>Личные сообщения</h1>
-            <div id="admin-only-content" style="display: none;">
-                <div class="messaging-layout">
-                    <div class="conversation-list" id="conversation-list">
-                        <p>Загрузка диалогов...</p>
-                    </div>
-                    <div class="chat-window">
-                        <h2 id="current-chat-header">Выберите чат</h2>
-                        <div class="chat-messages" id="chat-messages"></div>
-                        <form class="chat-reply-form" id="chat-reply-form" style="display: none;">
-                            <textarea id="reply-input" required></textarea>
-                            <button type="submit">Отправить</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-             <p id="auth-prompt">Эта страница доступна только администраторам.</p>
-        </main>
     </div>
+    <div class="container" id="main-content" style="display: none;">
+        <div id="conversations-list">
+             <h2>Диалоги</h2>
+             <div id="conv-list-content"></div>
+        </div>
+        <div id="chat-view">
+            <h2 id="chat-with-email">Выберите диалог</h2>
+            <div id="chat-messages">
+                <div id="placeholder"><p>Здесь будут отображаться сообщения.</p></div>
+            </div>
+            <form id="reply-form" style="display: none;">
+                <input type="text" id="reply-input" placeholder="Введите ваш ответ..." required>
+                <button type="submit">Отправить</button>
+            </form>
+        </div>
+    </div>
+    <p id="auth-prompt">Доступ запрещен. Эта страница только для администраторов.</p>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, getDocs, collectionGroup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { firebaseConfig } from './firebase-config.js';
 
         const app = initializeApp(firebaseConfig);
@@ -94,26 +100,27 @@
         const db = getFirestore(app);
 
         const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
-        let currentUser = null;
-        let activeChatUnsubscribe = null;
-
-        // Elements
-        const adminOnlyContent = document.getElementById('admin-only-content');
-        const authPrompt = document.getElementById('auth-prompt');
-        const conversationList = document.getElementById('conversation-list');
-        const chatHeader = document.getElementById('current-chat-header');
-        const chatMessages = document.getElementById('chat-messages');
-        const chatReplyForm = document.getElementById('chat-reply-form');
-        const replyInput = document.getElementById('reply-input');
         const appId = 'default-app-id';
-        
+
         const loginLink = document.getElementById('loginLink');
         const registerLink = document.getElementById('registerLink');
+        const logoutBtn = document.getElementById('logoutBtn');
         const settingsLink = document.getElementById('settingsLink');
         const messagesLink = document.getElementById('messagesLink');
-        const logoutBtn = document.getElementById('logoutBtn');
-        const themeToggle = document.getElementById('theme-toggle');
+        const mainContent = document.getElementById('main-content');
+        const authPrompt = document.getElementById('auth-prompt');
+        const convListContent = document.getElementById('conv-list-content');
+        const chatWithEmail = document.getElementById('chat-with-email');
+        const chatMessages = document.getElementById('chat-messages');
+        const replyForm = document.getElementById('reply-form');
+        const replyInput = document.getElementById('reply-input');
+        const placeholder = document.getElementById('placeholder');
+        
+        let activeChatUserId = null;
+        let activeChatUnsubscribe = null;
+        let currentUser = null;
 
+        const themeToggle = document.getElementById('theme-toggle');
         const loadTheme = () => {
             const theme = localStorage.getItem('theme');
             if (theme === 'dark') {
@@ -138,127 +145,107 @@
             }
         });
         loadTheme();
-        
-        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
 
         onAuthStateChanged(auth, user => {
             currentUser = user;
-            const isAdmin = user && adminEmails.includes(user.email);
-            
-            messagesLink.style.display = isAdmin ? 'inline' : 'none';
-
-            if (user && !user.isAnonymous) {
+            if (user && adminEmails.includes(user.email)) {
                 loginLink.style.display = 'none';
                 registerLink.style.display = 'none';
                 logoutBtn.style.display = 'inline';
                 settingsLink.style.display = 'inline';
+                messagesLink.style.display = 'inline';
+                mainContent.style.display = 'flex';
+                authPrompt.style.display = 'none';
+                loadConversations();
             } else {
                 loginLink.style.display = 'inline';
                 registerLink.style.display = 'inline';
                 logoutBtn.style.display = 'none';
                 settingsLink.style.display = 'none';
-            }
-
-            if (isAdmin) {
-                adminOnlyContent.style.display = 'block';
-                authPrompt.style.display = 'none';
-                loadConversations();
-            } else {
-                adminOnlyContent.style.display = 'none';
+                messagesLink.style.display = 'none';
+                mainContent.style.display = 'none';
                 authPrompt.style.display = 'block';
             }
         });
 
-        async function loadConversations() {
-            const conversations = new Map();
-            // This query is inefficient but necessary for this data structure.
-            // It scans all messages to find unique conversation threads.
-            const q = query(collectionGroup(db, 'messages'));
-            const querySnapshot = await getDocs(q);
+        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
 
-            querySnapshot.forEach(doc => {
-                 const pathParts = doc.ref.path.split('/');
-                 // The path is /artifacts/{appId}/public/data/privateMessages/{userId}/messages/{messageId}
-                 // so the userId is at index 6 from the end
-                 const userId = pathParts[pathParts.length - 3];
-                 const sender = doc.data().senderEmail;
-                 // We only want to list threads started by non-admins
-                 if (!conversations.has(userId) && !adminEmails.includes(sender)) {
-                     conversations.set(userId, sender);
-                 }
-            });
-            
-            conversationList.innerHTML = '';
-            if (conversations.size === 0) {
-                conversationList.innerHTML = '<p>Нет активных диалогов.</p>';
-                return;
+        const loadConversations = async () => {
+            const conversationsRef = collection(db, `/artifacts/${appId}/public/data/adminMessages`);
+            try {
+                const snapshot = await getDocs(conversationsRef);
+                convListContent.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const userId = doc.id;
+                    const userEmail = doc.data().email || userId.substring(0, 8) + '...'; // Fallback
+                    const convItem = document.createElement('div');
+                    convItem.className = 'conversation-item';
+                    convItem.textContent = userEmail;
+                    convItem.dataset.userId = userId;
+                    convItem.dataset.userEmail = userEmail;
+                    convItem.addEventListener('click', (e) => {
+                        document.querySelectorAll('.conversation-item').forEach(el => el.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                        openChat(userId, userEmail);
+                    });
+                    convListContent.appendChild(convItem);
+                });
+            } catch (error) {
+                console.error("Error loading conversations:", error);
+                convListContent.innerHTML = '<p>Не удалось загрузить диалоги.</p>';
             }
+        };
 
-            for (const [userId, userEmail] of conversations.entries()) {
-                const item = document.createElement('div');
-                item.className = 'conversation-item';
-                item.textContent = userEmail;
-                item.dataset.userId = userId;
-                item.dataset.userEmail = userEmail;
-                item.onclick = (e) => {
-                    document.querySelectorAll('.conversation-item.active').forEach(el => el.classList.remove('active'));
-                    e.currentTarget.classList.add('active');
-                    openChat(userId, userEmail);
-                }
-                conversationList.appendChild(item);
-            }
-        }
-
-        function openChat(userId, userEmail) {
+        const openChat = (userId, userEmail) => {
             if (activeChatUnsubscribe) activeChatUnsubscribe();
 
-            chatHeader.textContent = `Чат с ${userEmail}`;
-            chatReplyForm.style.display = 'flex';
-            chatReplyForm.onsubmit = (e) => handleReply(e, userId);
+            activeChatUserId = userId;
+            chatWithEmail.textContent = `Диалог с ${userEmail}`;
+            replyForm.style.display = 'flex';
+            placeholder.style.display = 'none';
 
-            const messagesRef = collection(db, `/artifacts/${appId}/public/data/privateMessages/${userId}/messages`);
-            const q = query(messagesRef, orderBy("createdAt"));
+            const messagesRef = collection(db, `/artifacts/${appId}/public/data/adminMessages/${userId}/messages`);
+            const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'));
 
-            activeChatUnsubscribe = onSnapshot(q, (snapshot) => {
+            activeChatUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
                 chatMessages.innerHTML = '';
                 snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = 'message';
-                    msgDiv.classList.add(adminEmails.includes(data.senderEmail) ? 'sent' : 'received');
+                    const msg = doc.data();
+                    const bubble = document.createElement('div');
+                    bubble.classList.add('message-bubble');
+                    const text = document.createElement('p');
+                    text.textContent = msg.text;
+                    const date = document.createElement('small');
+                    date.className = 'message-date';
+                    date.textContent = msg.createdAt ? msg.createdAt.toDate().toLocaleString('ru-RU') : '';
                     
-                    const senderDiv = document.createElement('div');
-                    senderDiv.className = 'message-sender';
-                    senderDiv.textContent = data.senderEmail;
+                    bubble.appendChild(text);
+                    bubble.appendChild(date);
 
-                    const textDiv = document.createElement('div');
-                    textDiv.textContent = data.text;
-
-                    msgDiv.appendChild(senderDiv);
-                    msgDiv.appendChild(textDiv);
-                    chatMessages.appendChild(msgDiv);
+                    if (msg.sender === currentUser.email) {
+                        bubble.classList.add('sent');
+                    } else {
+                        bubble.classList.add('received');
+                    }
+                    chatMessages.appendChild(bubble);
                 });
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, (error) => {
-                console.error("Error getting messages:", error);
-                chatMessages.innerHTML = "<p>Не удалось загрузить сообщения.</p>";
             });
-        }
-        
-        async function handleReply(event, userId) {
-            event.preventDefault();
-            const text = replyInput.value.trim();
-            if (text && currentUser) {
-                const messagesRef = collection(db, `/artifacts/${appId}/public/data/privateMessages/${userId}/messages`);
+        };
+
+        replyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageText = replyInput.value.trim();
+            if (messageText && activeChatUserId && currentUser) {
+                const messagesRef = collection(db, `/artifacts/${appId}/public/data/adminMessages/${activeChatUserId}/messages`);
                 await addDoc(messagesRef, {
-                    text: text,
-                    senderEmail: currentUser.email,
+                    text: messageText,
+                    sender: currentUser.email,
                     createdAt: serverTimestamp()
                 });
                 replyInput.value = '';
             }
-        }
-        
+        });
+
     </script>
 </body>
 </html>
