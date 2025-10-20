@@ -1,0 +1,265 @@
+<!-- messages.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сообщения</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --container-bg: #ffffff;
+            --border-color: #ddd;
+            --link-color: #0056b3;
+        }
+        .dark-theme {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --container-bg: #1e1e1e;
+            --border-color: #444;
+            --link-color: #90caf9;
+        }
+        body { font-family: "Times New Roman", Times, serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 2em; transition: background-color 0.3s, color 0.3s; }
+        .container { max-width: 1000px; margin: 0 auto; background-color: var(--container-bg); padding: 2em; border: 1px solid var(--border-color); }
+        nav { padding-bottom: 1em; border-bottom: 1px solid var(--border-color); margin-bottom: 2em; display: flex; align-items: center; flex-wrap: wrap; }
+        nav a { margin-right: 20px; color: var(--link-color); text-decoration: none; font-size: 1.1em; }
+        .auth-links { margin-left: auto; display: flex; align-items: center; }
+        #logoutBtn { background: none; border: none; color: #d9534f; cursor: pointer; font-size: 1.1em; font-family: "Times New Roman", Times, serif; }
+        #logoutBtn:hover { text-decoration: underline; }
+        #theme-toggle { background: none; border: 1px solid var(--border-color); cursor: pointer; font-size: 1.5em; padding: 5px; margin-left: 10px; border-radius: 5px; color: var(--text-color); }
+        h1, h2 { color: var(--text-color); }
+        button { font-family: "Times New Roman", Times, serif; }
+        .messaging-layout { display: flex; gap: 2em; height: 70vh; }
+        .conversation-list { width: 30%; border-right: 1px solid var(--border-color); overflow-y: auto; }
+        .chat-window { width: 70%; display: flex; flex-direction: column; }
+        .conversation-item { padding: 1em; cursor: pointer; border-bottom: 1px solid var(--border-color); }
+        .conversation-item:hover, .conversation-item.active { background-color: var(--bg-color); }
+        .chat-messages { flex-grow: 1; overflow-y: auto; padding: 1em; border: 1px solid var(--border-color); margin-bottom: 1em; display: flex; flex-direction: column; }
+        .message { margin-bottom: 1em; padding: 0.8em; border-radius: 8px; max-width: 80%; word-wrap: break-word; }
+        .message.sent { background-color: #dcf8c6; align-self: flex-end; }
+        .message.received { background-color: #f1f0f0; align-self: flex-start; }
+        .dark-theme .message.sent { background-color: #056162; }
+        .dark-theme .message.received { background-color: #262d31; }
+        .message-sender { font-weight: bold; font-size: 0.8em; margin-bottom: 4px; color: var(--text-color); opacity: 0.7; }
+        .chat-reply-form { display: flex; gap: 1em; }
+        .chat-reply-form textarea { flex-grow: 1; background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">Главная</a>
+            <a href="about.html">Об Нас</a>
+            <a href="projects.html">Каллы Проект</a>
+            <a href="comments.html">Комментарии</a>
+            <a href="messages.html" id="messagesLink" style="display: none;">Сообщения</a>
+            <div class="auth-links">
+                <a href="settings.html" id="settingsLink" style="display: none;">Настройки</a>
+                <a href="login.html" id="loginLink">Войти</a>
+                <a href="register.html" id="registerLink">Регистрация</a>
+                <button id="logoutBtn" style="display:none;">Выйти</button>
+                <button id="theme-toggle">☀️</button>
+            </div>
+        </nav>
+        <main>
+            <h1>Личные сообщения</h1>
+            <div id="admin-only-content" style="display: none;">
+                <div class="messaging-layout">
+                    <div class="conversation-list" id="conversation-list">
+                        <p>Загрузка диалогов...</p>
+                    </div>
+                    <div class="chat-window">
+                        <h2 id="current-chat-header">Выберите чат</h2>
+                        <div class="chat-messages" id="chat-messages"></div>
+                        <form class="chat-reply-form" id="chat-reply-form" style="display: none;">
+                            <textarea id="reply-input" required></textarea>
+                            <button type="submit">Отправить</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+             <p id="auth-prompt">Эта страница доступна только администраторам.</p>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, getDocs, collectionGroup } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from './firebase-config.js';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        const adminEmails = ["Admin@Admin.com", "italy@italy.com"];
+        let currentUser = null;
+        let activeChatUnsubscribe = null;
+
+        // Elements
+        const adminOnlyContent = document.getElementById('admin-only-content');
+        const authPrompt = document.getElementById('auth-prompt');
+        const conversationList = document.getElementById('conversation-list');
+        const chatHeader = document.getElementById('current-chat-header');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatReplyForm = document.getElementById('chat-reply-form');
+        const replyInput = document.getElementById('reply-input');
+        const appId = 'default-app-id';
+        
+        const loginLink = document.getElementById('loginLink');
+        const registerLink = document.getElementById('registerLink');
+        const settingsLink = document.getElementById('settingsLink');
+        const messagesLink = document.getElementById('messagesLink');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        const loadTheme = () => {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark') {
+                document.body.classList.add('dark-theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                document.body.classList.remove('dark-theme');
+                themeToggle.textContent = '☀️';
+            }
+        };
+        const saveTheme = (theme) => localStorage.setItem('theme', theme);
+
+        themeToggle.addEventListener('click', () => {
+            if (document.body.classList.contains('dark-theme')) {
+                document.body.classList.remove('dark-theme');
+                saveTheme('light');
+                themeToggle.textContent = '☀️';
+            } else {
+                document.body.classList.add('dark-theme');
+                saveTheme('dark');
+                themeToggle.textContent = '🌙';
+            }
+        });
+        loadTheme();
+        
+        logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = 'index.html'));
+
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            const isAdmin = user && adminEmails.includes(user.email);
+            
+            messagesLink.style.display = isAdmin ? 'inline' : 'none';
+
+            if (user && !user.isAnonymous) {
+                loginLink.style.display = 'none';
+                registerLink.style.display = 'none';
+                logoutBtn.style.display = 'inline';
+                settingsLink.style.display = 'inline';
+            } else {
+                loginLink.style.display = 'inline';
+                registerLink.style.display = 'inline';
+                logoutBtn.style.display = 'none';
+                settingsLink.style.display = 'none';
+            }
+
+            if (isAdmin) {
+                adminOnlyContent.style.display = 'block';
+                authPrompt.style.display = 'none';
+                loadConversations();
+            } else {
+                adminOnlyContent.style.display = 'none';
+                authPrompt.style.display = 'block';
+            }
+        });
+
+        async function loadConversations() {
+            const conversations = new Map();
+            // This query is inefficient but necessary for this data structure.
+            // It scans all messages to find unique conversation threads.
+            const q = query(collectionGroup(db, 'messages'));
+            const querySnapshot = await getDocs(q);
+
+            querySnapshot.forEach(doc => {
+                 const pathParts = doc.ref.path.split('/');
+                 // The path is /artifacts/{appId}/public/data/privateMessages/{userId}/messages/{messageId}
+                 // so the userId is at index 6 from the end
+                 const userId = pathParts[pathParts.length - 3];
+                 const sender = doc.data().senderEmail;
+                 // We only want to list threads started by non-admins
+                 if (!conversations.has(userId) && !adminEmails.includes(sender)) {
+                     conversations.set(userId, sender);
+                 }
+            });
+            
+            conversationList.innerHTML = '';
+            if (conversations.size === 0) {
+                conversationList.innerHTML = '<p>Нет активных диалогов.</p>';
+                return;
+            }
+
+            for (const [userId, userEmail] of conversations.entries()) {
+                const item = document.createElement('div');
+                item.className = 'conversation-item';
+                item.textContent = userEmail;
+                item.dataset.userId = userId;
+                item.dataset.userEmail = userEmail;
+                item.onclick = (e) => {
+                    document.querySelectorAll('.conversation-item.active').forEach(el => el.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    openChat(userId, userEmail);
+                }
+                conversationList.appendChild(item);
+            }
+        }
+
+        function openChat(userId, userEmail) {
+            if (activeChatUnsubscribe) activeChatUnsubscribe();
+
+            chatHeader.textContent = `Чат с ${userEmail}`;
+            chatReplyForm.style.display = 'flex';
+            chatReplyForm.onsubmit = (e) => handleReply(e, userId);
+
+            const messagesRef = collection(db, `/artifacts/${appId}/public/data/privateMessages/${userId}/messages`);
+            const q = query(messagesRef, orderBy("createdAt"));
+
+            activeChatUnsubscribe = onSnapshot(q, (snapshot) => {
+                chatMessages.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message';
+                    msgDiv.classList.add(adminEmails.includes(data.senderEmail) ? 'sent' : 'received');
+                    
+                    const senderDiv = document.createElement('div');
+                    senderDiv.className = 'message-sender';
+                    senderDiv.textContent = data.senderEmail;
+
+                    const textDiv = document.createElement('div');
+                    textDiv.textContent = data.text;
+
+                    msgDiv.appendChild(senderDiv);
+                    msgDiv.appendChild(textDiv);
+                    chatMessages.appendChild(msgDiv);
+                });
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, (error) => {
+                console.error("Error getting messages:", error);
+                chatMessages.innerHTML = "<p>Не удалось загрузить сообщения.</p>";
+            });
+        }
+        
+        async function handleReply(event, userId) {
+            event.preventDefault();
+            const text = replyInput.value.trim();
+            if (text && currentUser) {
+                const messagesRef = collection(db, `/artifacts/${appId}/public/data/privateMessages/${userId}/messages`);
+                await addDoc(messagesRef, {
+                    text: text,
+                    senderEmail: currentUser.email,
+                    createdAt: serverTimestamp()
+                });
+                replyInput.value = '';
+            }
+        }
+        
+    </script>
+</body>
+</html>
+
